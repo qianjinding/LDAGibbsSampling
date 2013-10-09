@@ -2,9 +2,6 @@ package liuyang.nlp.lda.main;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.List;
 import java.util.Random;
 
 /**
@@ -23,36 +20,6 @@ public class LdaGibbsSampling {
     int saveStep = 10;
     int beginSaveIters = 50;
   }
-  /**
-   * Get parameters from configuring file. If the configuring file has value in
-   * it, use the value. Else the default value in program will be used
-   */
-  private static void getParametersFromFile(ModelParameters ldaparameters, String parameterFile) throws IOException {
-    List<String> paramLines = Files.readAllLines(new File(parameterFile).toPath(), Charset.forName("UTF-8"));
-    for (String line : paramLines) {
-      String[] lineParts = line.split("\t");
-      switch (parameters.valueOf(lineParts[0])) {
-      case alpha:
-        ldaparameters.alpha = Float.valueOf(lineParts[1]);
-        break;
-      case beta:
-        ldaparameters.beta = Float.valueOf(lineParts[1]);
-        break;
-      case topicNum:
-        ldaparameters.topicNum = Integer.valueOf(lineParts[1]);
-        break;
-      case iteration:
-        ldaparameters.iteration = Integer.valueOf(lineParts[1]);
-        break;
-      case saveStep:
-        ldaparameters.saveStep = Integer.valueOf(lineParts[1]);
-        break;
-      case beginSaveIters:
-        ldaparameters.beginSaveIters = Integer.valueOf(lineParts[1]);
-        break;
-      }
-    }
-  }
 
   public enum parameters {
     alpha, beta, topicNum, iteration, saveStep, beginSaveIters;
@@ -61,9 +28,7 @@ public class LdaGibbsSampling {
   public static void main(String[] args) throws IOException {
     String originalDocsPath = "data/LdaOriginalDocs/";
     String resultPath = "data/LdaResults/";
-    String parameterFile = "data/LdaParameter/LdaParameters.txt";
     ModelParameters ldaparameters = new ModelParameters();
-    getParametersFromFile(ldaparameters, parameterFile);
     Documents docSet = new Documents();
     docSet.addDocDir(originalDocsPath);
     System.out.println("wordMap size " + docSet.termToIndexMap.size());
