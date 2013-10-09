@@ -13,30 +13,82 @@ import java.nio.file.Files;
 import java.util.*;
 
 public class LdaModel {
-  int[][] doc;// word index array
-  int V, K, M;// vocabulary size, topic number, document number
-  int[][] z;// topic label array
-  float alpha; // doc-topic dirichlet prior parameter
-  float beta; // topic-word dirichlet prior parameter
-  int[][] nmk;// given document m, count times of topic k. M*K
-  int[][] nkt;// given topic k, count times of term t. K*V
-  int[] nmkSum;// Sum for each row in nmk
-  int[] nktSum;// Sum for each row in nkt
-  double[][] phi;// Parameters for topic-word distribution K*V
-  double[][] theta;// Parameters for doc-topic distribution M*K
-  int iterations;// Times of iterations
-  int saveStep;// The number of iterations between two saving
-  int beginSaveIters;// Begin save model at this iteration
-  public LdaModel(LdaGibbsSampling.ModelParameters modelparam) {
-    // TODO Auto-generated constructor stub
+  private final Random random;
+  /**
+   * word index array
+   */
+  private final int[][] doc;
+  /**
+   * vocabulary size
+   */
+  private final int V;
+  /**
+   * topic number
+   */
+  private final int K;
+  /**
+   * document number
+   */
+  private final int M;
+  /**
+   * topic label array
+   */
+  private final int[][] z;
+  /**
+   * doc-topic dirichlet prior parameter
+   */
+  private final float alpha;
+  /**
+   * topic-word dirichlet prior parameter
+   */
+  private final float beta;
+  /**
+   * given document m, count times of topic k. M*K
+   */
+  private final int[][] nmk;
+  /**
+   * given topic k, count times of term t. K*V
+   */
+  private final int[][] nkt;
+  /**
+   * Sum for each row in nmk
+   */
+  private final int[] nmkSum;
+  /**
+   * Sum for each row in nkt
+   */
+  private final int[] nktSum;
+  /**
+   * Parameters for topic-word distribution K*V
+   */
+  private final double[][] phi;
+  /**
+   * Parameters for doc-topic distribution M*K
+   */
+  private final double[][] theta;
+  /**
+   * Times of iterations
+   */
+  private final int iterations;
+  /**
+   * The number of iterations between two saving
+   */
+  private final int saveStep;
+  /**
+   * Begin save model at this iteration
+   */
+  private final int beginSaveIters;
+  private final Documents docSet;
+  public LdaModel(LdaGibbsSampling.ModelParameters modelparam, Random random, Documents docSet) {
+    this.docSet = docSet;
     alpha = modelparam.alpha;
     beta = modelparam.beta;
     iterations = modelparam.iteration;
     K = modelparam.topicNum;
     saveStep = modelparam.saveStep;
     beginSaveIters = modelparam.beginSaveIters;
-  }
-  public void initializeModel(Documents docSet) {
+    this.random = random;
+
     M = docSet.docs.size();
     V = docSet.termToIndexMap.size();
     nmk = new int[M][K];
@@ -61,7 +113,7 @@ public class LdaModel {
       int N = docSet.docs.get(m).docWords.length;
       z[m] = new int[N];
       for (int n = 0; n < N; n++) {
-        int initTopic = (int) (Math.random() * K);// From 0 to K - 1
+        int initTopic = random.nextInt(K);// From 0 to K - 1
         z[m][n] = initTopic;
         // number of words in doc m assigned to topic initTopic add 1
         nmk[m][initTopic]++;
@@ -74,11 +126,10 @@ public class LdaModel {
       nmkSum[m] = N;
     }
   }
-  public void inferenceModel(Documents docSet, String resPath) throws IOException {
+  public void infer(String resPath) throws IOException {
     if (iterations < saveStep + beginSaveIters) {
-      System.err.println("Error: the number of iterations should be larger than "
+      throw new IllegalStateException("Error: the number of iterations should be larger than "
           + (saveStep + beginSaveIters));
-      System.exit(0);
     }
     for (int i = 0; i < iterations; i++) {
       System.out.println("Iteration " + i);
@@ -88,7 +139,7 @@ public class LdaModel {
         // Firstly update parameters
         updateEstimatedParameters();
         // Secondly print model variables
-        saveIteratedModel(i, docSet, resPath);
+        saveIteratedModel(i, resPath);
       }
       // Use Gibbs Sampling to update z[][]
       for (int m = 0; m < M; m++) {
@@ -100,6 +151,7 @@ public class LdaModel {
         }
       }
     }
+    saveIteratedModel(iterations, resPath);
   }
   private void updateEstimatedParameters() {
     for (int k = 0; k < K; k++) {
@@ -132,7 +184,7 @@ public class LdaModel {
     for (int k = 1; k < K; k++) {
       p[k] += p[k - 1];
     }
-    double u = Math.random() * p[K - 1]; // p[] is unnormalised
+    double u = random.nextDouble() * p[K - 1]; // p[] is unnormalised
     int newTopic;
     for (newTopic = 0; newTopic < K; newTopic++) {
       if (u < p[newTopic]) {
@@ -146,7 +198,7 @@ public class LdaModel {
     nktSum[newTopic]++;
     return newTopic;
   }
-  public void saveIteratedModel(int iters, Documents docSet, String resPath) throws IOException {
+  private void saveIteratedModel(int iters, String resPath) throws IOException {
     // lda.params lda.phi lda.theta lda.tassign lda.twords
     // lda.params
     String modelName = "lda_" + iters;
@@ -191,9 +243,9 @@ public class LdaModel {
     try (BufferedWriter writer = new BufferedWriter(new FileWriter(resPath + modelName + ".twords"))) {
       int topNum = 20; // Find the top 20 topic words in each topic
       for (int i = 0; i < K; i++) {
-        List<Integer> tWordsIndexArray = new ArrayList<Integer>();
+        List<Integer> tWordsIndexArray = new ArrayList<>();
         for (int j = 0; j < V; j++) {
-          tWordsIndexArray.add(new Integer(j));
+          tWordsIndexArray.add(j);
         }
         Collections.sort(tWordsIndexArray, new LdaModel.TwordsComparable(phi[i]));
         writer.write("topic " + i + "\t:\t");
@@ -207,7 +259,7 @@ public class LdaModel {
   }
 
   public class TwordsComparable implements Comparator<Integer> {
-    public double[] sortProb; // Store probability of each word in topic k
+    private final double[] sortProb; // Store probability of each word in topic k
     public TwordsComparable(double[] sortProb) {
       this.sortProb = sortProb;
     }

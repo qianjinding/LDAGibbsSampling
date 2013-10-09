@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Liu Yang's implementation of Gibbs Sampling of LDA
@@ -64,16 +65,13 @@ public class LdaGibbsSampling {
     ModelParameters ldaparameters = new ModelParameters();
     getParametersFromFile(ldaparameters, parameterFile);
     Documents docSet = new Documents();
-    docSet.readDocs(originalDocsPath);
+    docSet.addDocDir(originalDocsPath);
     System.out.println("wordMap size " + docSet.termToIndexMap.size());
     new File(resultPath).mkdirs();
-    LdaModel model = new LdaModel(ldaparameters);
-    System.out.println("1 Initialize the model ...");
-    model.initializeModel(docSet);
-    System.out.println("2 Learning and Saving the model ...");
-    model.inferenceModel(docSet, resultPath);
-    System.out.println("3 Output the final model ...");
-    model.saveIteratedModel(ldaparameters.iteration, docSet, resultPath);
+    Random random = new Random(65536);
+    LdaModel model = new LdaModel(ldaparameters, random, docSet);
+    System.out.println("Learning and Saving the model ...");
+    model.infer(resultPath);
     System.out.println("Done!");
   }
 }
