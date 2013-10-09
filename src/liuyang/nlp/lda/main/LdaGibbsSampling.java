@@ -14,7 +14,7 @@ import java.util.List;
  * @mail yangliuyx@gmail.com
  */
 public class LdaGibbsSampling {
-  public static class modelparameters {
+  public static class ModelParameters {
     float alpha = 0.5f; // usual value is 50 / K
     float beta = 0.1f;// usual value is 0.1
     int topicNum = 100;
@@ -26,7 +26,7 @@ public class LdaGibbsSampling {
    * Get parameters from configuring file. If the configuring file has value in
    * it, use the value. Else the default value in program will be used
    */
-  private static void getParametersFromFile(modelparameters ldaparameters, String parameterFile) throws IOException {
+  private static void getParametersFromFile(ModelParameters ldaparameters, String parameterFile) throws IOException {
     List<String> paramLines = Files.readAllLines(new File(parameterFile).toPath(), Charset.forName("UTF-8"));
     for (String line : paramLines) {
       String[] lineParts = line.split("\t");
@@ -61,7 +61,7 @@ public class LdaGibbsSampling {
     String originalDocsPath = "data/LdaOriginalDocs/";
     String resultPath = "data/LdaResults/";
     String parameterFile = "data/LdaParameter/LdaParameters.txt";
-    modelparameters ldaparameters = new modelparameters();
+    ModelParameters ldaparameters = new ModelParameters();
     getParametersFromFile(ldaparameters, parameterFile);
     Documents docSet = new Documents();
     docSet.readDocs(originalDocsPath);

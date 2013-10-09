@@ -27,7 +27,7 @@ public class LdaModel {
   int iterations;// Times of iterations
   int saveStep;// The number of iterations between two saving
   int beginSaveIters;// Begin save model at this iteration
-  public LdaModel(LdaGibbsSampling.modelparameters modelparam) {
+  public LdaModel(LdaGibbsSampling.ModelParameters modelparam) {
     // TODO Auto-generated constructor stub
     alpha = modelparam.alpha;
     beta = modelparam.beta;

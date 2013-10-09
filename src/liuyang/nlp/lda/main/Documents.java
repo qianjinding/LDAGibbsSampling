@@ -14,10 +14,10 @@ import java.util.*;
  * @mail yangliuyx@gmail.com
  */
 public class Documents {
-  ArrayList<Document> docs;
-  Map<String, Integer> termToIndexMap;
-  ArrayList<String> indexToTermMap;
-  Map<String, Integer> termCountMap;
+  final List<Document> docs;
+  final Map<String, Integer> termToIndexMap;
+  final List<String> indexToTermMap;
+  final Map<String, Integer> termCountMap;
   public Documents() {
     docs = new ArrayList<Document>();
     termToIndexMap = new HashMap<String, Integer>();
@@ -33,11 +33,11 @@ public class Documents {
 
   public static class Document {
     final int[] docWords;
-    public Document(File docName, Map<String, Integer> termToIndexMap, ArrayList<String> indexToTermMap,
+    public Document(File docFile, Map<String, Integer> termToIndexMap, List<String> indexToTermMap,
         Map<String, Integer> termCountMap) throws IOException {
       // Read file and initialize word index array
-      ArrayList<String> words = new ArrayList<String>();
-      List<String>docLines = Files.readAllLines(docName.toPath(), Charset.forName("UTF-8"));
+      List<String> words = new ArrayList<String>();
+      List<String>docLines = Files.readAllLines(docFile.toPath(), Charset.forName("UTF-8"));
       for (String line : docLines) {
         for (String tok : line.split(" ")) {
           words.add(tok);
