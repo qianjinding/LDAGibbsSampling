@@ -1,4 +1,4 @@
-package liuyang.nlp.lda.main;
+package ron;
 
 /**
  * Class for Lda model
@@ -11,8 +11,10 @@ import java.io.*;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.logging.Logger;
 
 public class LdaModel {
+  private static final Logger logger = Logger.getLogger(LdaModel.class.getName());
   private final Random random;
   /**
    * word index array
@@ -79,7 +81,7 @@ public class LdaModel {
    */
   private final int beginSaveIters;
   private final Documents docSet;
-  public LdaModel(LdaGibbsSampling.ModelParameters modelparam, Random random, Documents docSet) {
+  public LdaModel(ModelParameters modelparam, Random random, Documents docSet) {
     this.docSet = docSet;
     alpha = modelparam.alpha;
     beta = modelparam.beta;
@@ -127,15 +129,11 @@ public class LdaModel {
     }
   }
   public void infer(String resPath) throws IOException {
-    if (iterations < saveStep + beginSaveIters) {
-      throw new IllegalStateException("Error: the number of iterations should be larger than "
-          + (saveStep + beginSaveIters));
-    }
     for (int i = 0; i < iterations; i++) {
-      System.out.println("Iteration " + i);
+      logger.info("Iteration " + i);
       if ((i >= beginSaveIters) && (((i - beginSaveIters) % saveStep) == 0)) {
         // Saving the model
-        System.out.println("Saving model at iteration " + i + " ... ");
+        logger.info("Saving model at iteration " + i + " ... ");
         // Firstly update parameters
         updateEstimatedParameters();
         // Secondly print model variables
@@ -211,9 +209,9 @@ public class LdaModel {
     lines.add("iterations = " + iterations);
     lines.add("saveStep = " + saveStep);
     lines.add("beginSaveIters = " + beginSaveIters);
-    Files.write(new File(resPath + modelName + ".params").toPath(), lines, Charset.forName("UTF-8"));
+    Files.write(new File(new File(resPath), modelName + ".params").toPath(), lines, Charset.forName("UTF-8"));
     // lda.phi K*V
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(resPath + modelName + ".phi"))) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".phi")))) {
       for (int i = 0; i < K; i++) {
         for (int j = 0; j < V; j++) {
           writer.write(phi[i][j] + "\t");
@@ -222,7 +220,7 @@ public class LdaModel {
       }
     }
     // lda.theta M*K
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(resPath + modelName + ".theta"))) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".theta")))) {
       for (int i = 0; i < M; i++) {
         for (int j = 0; j < K; j++) {
           writer.write(theta[i][j] + "\t");
@@ -231,7 +229,7 @@ public class LdaModel {
       }
     }
     // lda.tassign
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(resPath + modelName + ".tassign"))) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".tassign")))) {
       for (int m = 0; m < M; m++) {
         for (int n = 0; n < doc[m].length; n++) {
           writer.write(doc[m][n] + ":" + z[m][n] + "\t");
@@ -240,8 +238,8 @@ public class LdaModel {
       }
     }
     // lda.twords phi[][] K*V
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(resPath + modelName + ".twords"))) {
-      int topNum = 20; // Find the top 20 topic words in each topic
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".twords")))) {
+      int topNum = V; // Find ALL the words in each topic
       for (int i = 0; i < K; i++) {
         List<Integer> tWordsIndexArray = new ArrayList<>();
         for (int j = 0; j < V; j++) {
