@@ -23,15 +23,15 @@ public class LdaModel {
   /**
    * vocabulary size
    */
-  private final int V;
+  private final int numTerms;
   /**
    * topic number
    */
-  private final int K;
+  private final int numTopics;
   /**
    * document number
    */
-  private final int M;
+  private final int numDocs;
   /**
    * topic label array
    */
@@ -86,22 +86,22 @@ public class LdaModel {
     alpha = modelparam.alpha;
     beta = modelparam.beta;
     iterations = modelparam.iteration;
-    K = modelparam.topicNum;
+    numTopics = modelparam.topicNum;
     saveStep = modelparam.saveStep;
     beginSaveIters = modelparam.beginSaveIters;
     this.random = random;
 
-    M = docSet.docs.size();
-    V = docSet.termToIndexMap.size();
-    nmk = new int[M][K];
-    nkt = new int[K][V];
-    nmkSum = new int[M];
-    nktSum = new int[K];
-    phi = new double[K][V];
-    theta = new double[M][K];
+    numDocs = docSet.docs.size();
+    numTerms = docSet.termToIndexMap.size();
+    nmk = new int[numDocs][numTopics];
+    nkt = new int[numTopics][numTerms];
+    nmkSum = new int[numDocs];
+    nktSum = new int[numTopics];
+    phi = new double[numTopics][numTerms];
+    theta = new double[numDocs][numTopics];
     // initialize documents index array
-    doc = new int[M][];
-    for (int m = 0; m < M; m++) {
+    doc = new int[numDocs][];
+    for (int m = 0; m < numDocs; m++) {
       // Notice the limit of memory
       int N = docSet.docs.get(m).docWords.length;
       doc[m] = new int[N];
@@ -110,12 +110,12 @@ public class LdaModel {
       }
     }
     // initialize topic lable z for each word
-    z = new int[M][];
-    for (int m = 0; m < M; m++) {
+    z = new int[numDocs][];
+    for (int m = 0; m < numDocs; m++) {
       int N = docSet.docs.get(m).docWords.length;
       z[m] = new int[N];
       for (int n = 0; n < N; n++) {
-        int initTopic = random.nextInt(K);// From 0 to K - 1
+        int initTopic = random.nextInt(numTopics);// From 0 to K - 1
         z[m][n] = initTopic;
         // number of words in doc m assigned to topic initTopic add 1
         nmk[m][initTopic]++;
@@ -140,7 +140,7 @@ public class LdaModel {
         saveIteratedModel(i, resPath);
       }
       // Use Gibbs Sampling to update z[][]
-      for (int m = 0; m < M; m++) {
+      for (int m = 0; m < numDocs; m++) {
         int N = docSet.docs.get(m).docWords.length;
         for (int n = 0; n < N; n++) {
           // Sample from p(z_i|z_-i, w)
@@ -152,14 +152,14 @@ public class LdaModel {
     saveIteratedModel(iterations, resPath);
   }
   private void updateEstimatedParameters() {
-    for (int k = 0; k < K; k++) {
-      for (int t = 0; t < V; t++) {
-        phi[k][t] = (nkt[k][t] + beta) / (nktSum[k] + V * beta);
+    for (int k = 0; k < numTopics; k++) {
+      for (int t = 0; t < numTerms; t++) {
+        phi[k][t] = (nkt[k][t] + beta) / (nktSum[k] + numTerms * beta);
       }
     }
-    for (int m = 0; m < M; m++) {
-      for (int k = 0; k < K; k++) {
-        theta[m][k] = (nmk[m][k] + alpha) / (nmkSum[m] + K * alpha);
+    for (int m = 0; m < numDocs; m++) {
+      for (int k = 0; k < numTopics; k++) {
+        theta[m][k] = (nmk[m][k] + alpha) / (nmkSum[m] + numTopics * alpha);
       }
     }
   }
@@ -172,19 +172,19 @@ public class LdaModel {
     nmkSum[m]--;
     nktSum[oldTopic]--;
     // Compute p(z_i = k|z_-i, w)
-    double[] p = new double[K];
-    for (int k = 0; k < K; k++) {
-      p[k] = (nkt[k][doc[m][n]] + beta) / (nktSum[k] + V * beta) * (nmk[m][k] + alpha)
-          / (nmkSum[m] + K * alpha);
+    double[] p = new double[numTopics];
+    for (int k = 0; k < numTopics; k++) {
+      p[k] = (nkt[k][doc[m][n]] + beta) / (nktSum[k] + numTerms * beta) * (nmk[m][k] + alpha)
+          / (nmkSum[m] + numTopics * alpha);
     }
     // Sample a new topic label for w_{m, n} like roulette
     // Compute cumulated probability for p
-    for (int k = 1; k < K; k++) {
+    for (int k = 1; k < numTopics; k++) {
       p[k] += p[k - 1];
     }
-    double u = random.nextDouble() * p[K - 1]; // p[] is unnormalised
+    double u = random.nextDouble() * p[numTopics - 1]; // p[] is unnormalised
     int newTopic;
-    for (newTopic = 0; newTopic < K; newTopic++) {
+    for (newTopic = 0; newTopic < numTopics; newTopic++) {
       if (u < p[newTopic]) {
         break;
       }
@@ -200,37 +200,42 @@ public class LdaModel {
     // lda.params lda.phi lda.theta lda.tassign lda.twords
     // lda.params
     String modelName = "lda_" + iters;
-    ArrayList<String> lines = new ArrayList<String>();
-    lines.add("alpha = " + alpha);
-    lines.add("beta = " + beta);
-    lines.add("topicNum = " + K);
-    lines.add("docNum = " + M);
-    lines.add("termNum = " + V);
-    lines.add("iterations = " + iterations);
-    lines.add("saveStep = " + saveStep);
-    lines.add("beginSaveIters = " + beginSaveIters);
-    Files.write(new File(new File(resPath), modelName + ".params").toPath(), lines, Charset.forName("UTF-8"));
+
+    File resultDir = new File(resPath);
+    {
+      ArrayList<String> lines = new ArrayList<String>();
+      lines.add("alpha = " + alpha);
+      lines.add("beta = " + beta);
+      lines.add("topicNum = " + numTopics);
+      lines.add("docNum = " + numDocs);
+      lines.add("termNum = " + numTerms);
+      lines.add("iterations = " + iterations);
+      lines.add("saveStep = " + saveStep);
+      lines.add("beginSaveIters = " + beginSaveIters);
+      Files.write(new File(resultDir, modelName + ".params").toPath(), lines, Charset.forName("UTF-8"));
+    }
+
     // lda.phi K*V
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".phi")))) {
-      for (int i = 0; i < K; i++) {
-        for (int j = 0; j < V; j++) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".phi")))) {
+      for (int i = 0; i < numTopics; i++) {
+        for (int j = 0; j < numTerms; j++) {
           writer.write(phi[i][j] + "\t");
         }
         writer.write("\n");
       }
     }
     // lda.theta M*K
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".theta")))) {
-      for (int i = 0; i < M; i++) {
-        for (int j = 0; j < K; j++) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".theta")))) {
+      for (int i = 0; i < numDocs; i++) {
+        for (int j = 0; j < numTopics; j++) {
           writer.write(theta[i][j] + "\t");
         }
         writer.write("\n");
       }
     }
     // lda.tassign
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".tassign")))) {
-      for (int m = 0; m < M; m++) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".tassign")))) {
+      for (int m = 0; m < numDocs; m++) {
         for (int n = 0; n < doc[m].length; n++) {
           writer.write(doc[m][n] + ":" + z[m][n] + "\t");
         }
@@ -238,11 +243,11 @@ public class LdaModel {
       }
     }
     // lda.twords phi[][] K*V
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(new File(resPath), modelName + ".twords")))) {
-      int topNum = V; // Find ALL the words in each topic
-      for (int i = 0; i < K; i++) {
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".twords")))) {
+      int topNum = numTerms; // Find ALL the words in each topic
+      for (int i = 0; i < numTopics; i++) {
         List<Integer> tWordsIndexArray = new ArrayList<>();
-        for (int j = 0; j < V; j++) {
+        for (int j = 0; j < numTerms; j++) {
           tWordsIndexArray.add(j);
         }
         Collections.sort(tWordsIndexArray, new LdaModel.TwordsComparable(phi[i]));
