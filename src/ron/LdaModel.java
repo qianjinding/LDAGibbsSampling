@@ -98,6 +98,7 @@ public class LdaModel {
     nkt = new int[numTopics][numTerms];
     nmkSum = new int[numDocs];
     nktSum = new int[numTopics];
+    p = new double[numTopics];
     phi = new double[numTopics][numTerms];
     theta = new double[numDocs][numTopics];
     // initialize documents index array
@@ -110,7 +111,7 @@ public class LdaModel {
         doc[m][n] = docSet.docs.get(m).docWords[n];
       }
     }
-    // initialize topic lable z for each word
+    // initialize topic label z for each word
     z = new int[numDocs][];
     for (int m = 0; m < numDocs; m++) {
       int N = docSet.docs.get(m).docWords.length;
@@ -130,27 +131,30 @@ public class LdaModel {
     }
   }
   public void infer(String resPath) throws IOException {
-    for (int i = 0; i < iterations; i++) {
-      logger.info("Iteration " + i);
-      if ((i >= beginSaveIters) && (((i - beginSaveIters) % saveStep) == 0)) {
-        // Saving the model
-        logger.info("Saving model at iteration " + i + " ... ");
-        // Firstly update parameters
-        updateEstimatedParameters();
-        // Secondly print model variables
-        saveIteratedModel(i, resPath);
-      }
-      // Use Gibbs Sampling to update z[][]
-      for (int m = 0; m < numDocs; m++) {
-        int N = docSet.docs.get(m).docWords.length;
-        for (int n = 0; n < N; n++) {
-          // Sample from p(z_i|z_-i, w)
-          int newTopic = sampleTopicZ(m, n);
-          z[m][n] = newTopic;
+    try (ProgressTracker pt = new ProgressTracker(logger, "infer", iterations, "iterations", "docs", "words")) {
+      for (int i = 0; i < iterations; i++) {
+        if ((i >= beginSaveIters) && (((i - beginSaveIters) % saveStep) == 0)) {
+          // Saving the model
+          logger.info("Saving model at iteration " + i + " ... ");
+          // Firstly update parameters
+          updateEstimatedParameters();
+          // Secondly print model variables
+          saveIteratedModel("lda_" + i, resPath);
         }
+        // Use Gibbs Sampling to update z[][]
+        for (int m = 0; m < numDocs; m++) {
+          int N = docSet.docs.get(m).docWords.length;
+          for (int n = 0; n < N; n++) {
+            // Sample from p(z_i|z_-i, w)
+            int newTopic = sampleTopicZ(m, n);
+            z[m][n] = newTopic;
+          }
+          pt.advise(0, 1, N);
+        }
+        pt.advise(1, 0, 0);
       }
     }
-    saveIteratedModel(iterations, resPath);
+    saveIteratedModel("lda_final", resPath);
   }
   private void updateEstimatedParameters() {
     for (int k = 0; k < numTopics; k++) {
@@ -164,19 +168,22 @@ public class LdaModel {
       }
     }
   }
+  private final double[] p;
   private int sampleTopicZ(int m, int n) {
     // Sample from p(z_i|z_-i, w) using Gibbs upde rule
     // Remove topic label for w_{m,n}
-    int oldTopic = z[m][n];
+    final int oldTopic = z[m][n];
     nmk[m][oldTopic]--;
-    nkt[oldTopic][doc[m][n]]--;
+    final int word = doc[m][n];
+    nkt[oldTopic][word]--;
     nmkSum[m]--;
     nktSum[oldTopic]--;
     // Compute p(z_i = k|z_-i, w)
-    double[] p = new double[numTopics];
     for (int k = 0; k < numTopics; k++) {
-      p[k] = (nkt[k][doc[m][n]] + beta) / (nktSum[k] + numTerms * beta) * (nmk[m][k] + alpha)
-          / (nmkSum[m] + numTopics * alpha);
+      p[k] =
+          (nkt[k][word] + beta) / (nktSum[k] + numTerms * beta)
+          *
+          (nmk[m][k] + alpha) / (nmkSum[m] + numTopics * alpha);
     }
     // Sample a new topic label for w_{m, n} like roulette
     // Compute cumulated probability for p
@@ -192,15 +199,14 @@ public class LdaModel {
     }
     // Add new topic label for w_{m, n}
     nmk[m][newTopic]++;
-    nkt[newTopic][doc[m][n]]++;
+    nkt[newTopic][word]++;
     nmkSum[m]++;
     nktSum[newTopic]++;
     return newTopic;
   }
-  private void saveIteratedModel(int iters, String resPath) throws IOException {
+  private void saveIteratedModel(String modelName, String resPath) throws IOException {
     // lda.params lda.phi lda.theta lda.tassign lda.twords
     // lda.params
-    String modelName = "lda_" + iters;
 
     File resultDir = new File(resPath);
     {
@@ -228,14 +234,11 @@ public class LdaModel {
     }
     // lda.theta M*K
     try (ProgressTracker pt = new ProgressTracker(logger, "save.theta", numDocs, "rows", "bytes");
-        BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".theta")))) {
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(new File(resultDir, modelName + ".theta.gz")))))) {
       for (int i = 0; i < numDocs; i++) {
-        for (int j = 0; j < numTopics; j++) {
-          String str = theta[i][j] + "\t";
-          writer.write(str);
-          pt.advise(0,str.length());
-        }
-        pt.advise(1,1);
+        String str = join(theta[i], '\t');
+        pt.advise(1, str.length() + 1);
+        writer.write(str);
         writer.write("\n");
       }
     }
@@ -254,7 +257,7 @@ public class LdaModel {
     }
     // lda.twords phi[][] K*V
     try (ProgressTracker pt = new ProgressTracker(logger, "save.twords", numTopics, "rows", "bytes");
-        BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".twords")))) {
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(new File(resultDir, modelName + ".twords.gz")))))) {
       int topNum = numTerms; // Find ALL the words in each topic
       for (int i = 0; i < numTopics; i++) {
         List<Integer> tWordsIndexArray = new ArrayList<>();

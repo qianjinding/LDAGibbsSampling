@@ -6,5 +6,5 @@ public class ModelParameters {
   int topicNum = 1000;
   int iteration = 1000;
   int saveStep = 1;
-  int beginSaveIters = 0;
+  int beginSaveIters = 1000;
 }
