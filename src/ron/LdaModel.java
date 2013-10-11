@@ -12,6 +12,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.zip.GZIPOutputStream;
 
 public class LdaModel {
   private static final Logger logger = Logger.getLogger(LdaModel.class.getName());
@@ -216,34 +217,44 @@ public class LdaModel {
     }
 
     // lda.phi K*V
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".phi")))) {
+    try (ProgressTracker pt = new ProgressTracker(logger, "save.phi", numTopics, "rows", "bytes");
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(new File(resultDir, modelName + ".phi.gz")))))) {
       for (int i = 0; i < numTopics; i++) {
-        for (int j = 0; j < numTerms; j++) {
-          writer.write(phi[i][j] + "\t");
-        }
+        String str = join(phi[i], '\t');
+        pt.advise(1, str.length() + 1);
+        writer.write(str);
         writer.write("\n");
       }
     }
     // lda.theta M*K
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".theta")))) {
+    try (ProgressTracker pt = new ProgressTracker(logger, "save.theta", numDocs, "rows", "bytes");
+        BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".theta")))) {
       for (int i = 0; i < numDocs; i++) {
         for (int j = 0; j < numTopics; j++) {
-          writer.write(theta[i][j] + "\t");
+          String str = theta[i][j] + "\t";
+          writer.write(str);
+          pt.advise(0,str.length());
         }
+        pt.advise(1,1);
         writer.write("\n");
       }
     }
     // lda.tassign
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".tassign")))) {
+    try (ProgressTracker pt = new ProgressTracker(logger, "save.tassign", numDocs, "rows", "bytes");
+        BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".tassign")))) {
       for (int m = 0; m < numDocs; m++) {
         for (int n = 0; n < doc[m].length; n++) {
-          writer.write(doc[m][n] + ":" + z[m][n] + "\t");
+          String str = doc[m][n] + ":" + z[m][n] + "\t";
+          writer.write(str);
+          pt.advise(0,str.length());
         }
+        pt.advise(1,1);
         writer.write("\n");
       }
     }
     // lda.twords phi[][] K*V
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".twords")))) {
+    try (ProgressTracker pt = new ProgressTracker(logger, "save.twords", numTopics, "rows", "bytes");
+        BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".twords")))) {
       int topNum = numTerms; // Find ALL the words in each topic
       for (int i = 0; i < numTopics; i++) {
         List<Integer> tWordsIndexArray = new ArrayList<>();
@@ -253,12 +264,24 @@ public class LdaModel {
         Collections.sort(tWordsIndexArray, new LdaModel.TwordsComparable(phi[i]));
         writer.write("topic " + i + "\t:\t");
         for (int t = 0; t < topNum; t++) {
-          writer.write(docSet.indexToTermMap.get(tWordsIndexArray.get(t)) + " "
-              + phi[i][tWordsIndexArray.get(t)] + "\t");
+          String str = docSet.indexToTermMap.get(tWordsIndexArray.get(t)) + " "
+              + phi[i][tWordsIndexArray.get(t)] + "\t";
+          writer.write(str);
+          pt.advise(0,str.length());
         }
+        pt.advise(1,1);
         writer.write("\n");
       }
     }
+  }
+
+  private String join(double[] ds, char c) {
+    StringBuilder sb = new StringBuilder();
+    for (int i=0; i<ds.length; i++) {
+      if (i>0) sb.append(c);
+      sb.append(ds[i]);
+    }
+    return sb.toString();
   }
 
   public class TwordsComparable implements Comparator<Integer> {

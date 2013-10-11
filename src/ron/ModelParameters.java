@@ -5,6 +5,6 @@ public class ModelParameters {
   float beta = 0.1f;// usual value is 0.1
   int topicNum = 1000;
   int iteration = 1000;
-  int saveStep = 10;
-  int beginSaveIters = 10500;
+  int saveStep = 1;
+  int beginSaveIters = 0;
 }
