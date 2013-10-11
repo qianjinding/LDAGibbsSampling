@@ -98,7 +98,6 @@ public class LdaModel {
     nkt = new int[numTopics][numTerms];
     nmkSum = new int[numDocs];
     nktSum = new int[numTopics];
-    p = new double[numTopics];
     phi = new double[numTopics][numTerms];
     theta = new double[numDocs][numTopics];
     // initialize documents index array
@@ -154,7 +153,8 @@ public class LdaModel {
         pt.advise(1, 0, 0);
       }
     }
-    saveIteratedModel("lda_final", resPath);
+    updateEstimatedParameters();
+    saveIteratedModel("lda_" + iterations, resPath);
   }
   private void updateEstimatedParameters() {
     for (int k = 0; k < numTopics; k++) {
@@ -168,9 +168,8 @@ public class LdaModel {
       }
     }
   }
-  private final double[] p;
   private int sampleTopicZ(int m, int n) {
-    // Sample from p(z_i|z_-i, w) using Gibbs upde rule
+    // Sample from p(z_i|z_-i, w) using Gibbs update rule
     // Remove topic label for w_{m,n}
     final int oldTopic = z[m][n];
     nmk[m][oldTopic]--;
@@ -179,6 +178,7 @@ public class LdaModel {
     nmkSum[m]--;
     nktSum[oldTopic]--;
     // Compute p(z_i = k|z_-i, w)
+    double[] p = new double[numTopics];
     for (int k = 0; k < numTopics; k++) {
       p[k] =
           (nkt[k][word] + beta) / (nktSum[k] + numTerms * beta)
@@ -190,13 +190,9 @@ public class LdaModel {
     for (int k = 1; k < numTopics; k++) {
       p[k] += p[k - 1];
     }
-    double u = random.nextDouble() * p[numTopics - 1]; // p[] is unnormalised
-    int newTopic;
-    for (newTopic = 0; newTopic < numTopics; newTopic++) {
-      if (u < p[newTopic]) {
-        break;
-      }
-    }
+    double u = random.nextFloat() * p[numTopics - 1]; // p[] is unnormalised
+    int newTopic = Arrays.binarySearch(p, u);
+    if (newTopic < 0) newTopic = -newTopic-1;
     // Add new topic label for w_{m, n}
     nmk[m][newTopic]++;
     nkt[newTopic][word]++;
@@ -247,9 +243,11 @@ public class LdaModel {
         BufferedWriter writer = new BufferedWriter(new FileWriter(new File(resultDir, modelName + ".tassign")))) {
       for (int m = 0; m < numDocs; m++) {
         for (int n = 0; n < doc[m].length; n++) {
-          String str = doc[m][n] + ":" + z[m][n] + "\t";
-          writer.write(str);
-          pt.advise(0,str.length());
+          if (z[m][n] > 0) {
+            String str = doc[m][n] + ":" + z[m][n] + "\t";
+            writer.write(str);
+            pt.advise(0,str.length());
+          }
         }
         pt.advise(1,1);
         writer.write("\n");
@@ -267,10 +265,12 @@ public class LdaModel {
         Collections.sort(tWordsIndexArray, new LdaModel.TwordsComparable(phi[i]));
         writer.write("topic " + i + "\t:\t");
         for (int t = 0; t < topNum; t++) {
-          String str = docSet.indexToTermMap.get(tWordsIndexArray.get(t)) + " "
-              + phi[i][tWordsIndexArray.get(t)] + "\t";
-          writer.write(str);
-          pt.advise(0,str.length());
+          int wordid = tWordsIndexArray.get(t);
+          if (phi[i][wordid] > 0) {
+            String str = docSet.indexToTermMap.get(wordid) + " " + phi[i][wordid] + "\t";
+            writer.write(str);
+            pt.advise(0,str.length());
+          }
         }
         pt.advise(1,1);
         writer.write("\n");
