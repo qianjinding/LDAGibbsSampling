@@ -21,7 +21,7 @@ public final class CrapParser {
     int state = 0;
     String[] cols = null;
     List<String[]> rows = new ArrayList<>();
-    try (ProgressTracker pt = new ProgressTracker(logger, "parsing", -1, "rows", "bytes");
+    try (ProgressTracker pt = new ProgressTracker(logger, "parsing " + pathname, -1, "rows", "bytes");
         BufferedReader r = Files.newBufferedReader(new File(pathname).toPath(), Charset.forName("UTF-8"))) {
       String line;
       while (null != (line = r.readLine())) {

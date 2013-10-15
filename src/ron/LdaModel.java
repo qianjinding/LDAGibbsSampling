@@ -190,7 +190,7 @@ public class LdaModel {
     for (int k = 1; k < numTopics; k++) {
       p[k] += p[k - 1];
     }
-    double u = random.nextFloat() * p[numTopics - 1]; // p[] is unnormalised
+    double u = random.nextDouble() * p[numTopics - 1]; // p[] is unnormalised
     int newTopic = Arrays.binarySearch(p, u);
     if (newTopic < 0) newTopic = -newTopic-1;
     // Add new topic label for w_{m, n}
