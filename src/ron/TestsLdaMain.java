@@ -3,7 +3,7 @@ package ron;
 import java.io.*;
 import java.util.*;
 
-public class TestsLda {
+public class TestsLdaMain {
   public static void main(String[]args)throws Exception {
     ModelParameters ldaparameters = new ModelParameters();
     Documents docSet = new Documents();

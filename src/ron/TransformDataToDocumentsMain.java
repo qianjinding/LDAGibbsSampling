@@ -4,7 +4,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.*;
 
-public class TransformDataToDocuments {
+public class TransformDataToDocumentsMain {
   public static void main(String[]args)throws Exception {
     // ID SEEN_DATE AFFECTED_FILES
     CrapParser cls = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt");
