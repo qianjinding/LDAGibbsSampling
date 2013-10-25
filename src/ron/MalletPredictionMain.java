@@ -1,10 +1,12 @@
 package ron;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
+import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.*;
+import java.util.Map.Entry;
 
-public class FartMain {
+public class MalletPredictionMain {
   static final class Topic {
     public final int topicid;
     public final double d;
@@ -39,6 +41,34 @@ public class FartMain {
     }
   }
   public static void main(String[]args)throws Exception {
+    // ID SEEN_DATE AFFECTED_FILES
+    CrapParser cls = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt");
+    Map<String, Set<String>> changelist_id_to_files = new HashMap<>();
+    Map<String, String> file_to_changelist_id = new HashMap<>();
+    for (String[] changelist: cls.rows) {
+      for (String file : changelist[2].split("\n")) {
+        Set<String> files = changelist_id_to_files.get(changelist[0]);
+        if (files == null) {
+          changelist_id_to_files.put(changelist[0], files = new HashSet<>());
+        }
+        files.add(file);
+        file_to_changelist_id.put(file, changelist[0]);
+      }
+    }
+
+
+    Map<String, Set<String>> changelist_to_failures = new HashMap<>();
+    for (String line : Files.readAllLines(new File("changelist_to_failures_doc.txt").toPath(), Charset.forName("UTF-8"))) {
+      String[] ar = line.split("\t");
+      Set<String> set = new HashSet<>();
+      Set<String> prev = changelist_to_failures.put(ar[0], set);
+      if (prev != null) throw new RuntimeException(line);
+      for (int i=1; i<ar.length; i++) {
+        boolean added = set.add(ar[i]);
+        if (!added) throw new RuntimeException(line);
+      }
+    }
+
     // ron.topickeys
     // 6       0.00868 14669524 15841851 15841684 14669525 15841290 14669526 14669523 15841555 14669527 15841611 15841413 15841284 3230927
     Map<Integer, Topic> topics = new HashMap<>();
@@ -80,14 +110,24 @@ public class FartMain {
     {
       // evaluate performance for a single test
       List<Topic> relevant_topics = new ArrayList<>();
-      // 15578983
+      String test_id = "15578983";
       for (Topic t : topics.values()) {
-        if (t.terms.contains("15578983")) {
+        if (t.terms.contains(test_id)) {
           relevant_topics.add(t);
         }
       }
 
       List<Prediction> predictions = new ArrayList<>();
+
+      List<Entry<String, Set<String>>> list = new ArrayList<>(changelist_to_failures.entrySet());
+      for (int i=0; i<list.size(); i++) {
+        Entry<String, Set<String>> e = list.get(i);
+        String changelist_id = e.getKey();
+        Set<String> failures = e.getValue();
+        for (int j=i+1; i<list.size(); i++) {
+
+        }
+      }
 
       for (Doc d : docs.values()) {
         double score = 0;
@@ -99,10 +139,13 @@ public class FartMain {
           }
         }
         String source_file = source_files.get(d.docid);
+        String changelist_id = file_to_changelist_id.get(source_file);
+        Set<String> all_source_files = changelist_id_to_files.get(changelist_id);
+
         List<String> actual_failures = source_file_to_failure_history.get(source_file);
         int count = 0;
         for (String s : actual_failures) {
-          if ("15578983".equals(s)) {
+          if (test_id.equals(s)) {
             count++;
           }
         }
@@ -127,9 +170,6 @@ public class FartMain {
       }
       System.out.println(numcorrect +" correct, out of " + total);
     }
-
-    // ID SEEN_DATE AFFECTED_FILES
-    CrapParser cls = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt");
 
   }
 
