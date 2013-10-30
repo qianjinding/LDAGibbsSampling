@@ -12,12 +12,12 @@ import java.util.logging.Logger;
 //  23456 31-AUG-13       "//app/main/core/baz.java
 //  //app/main/core/bif.xml
 //  //app/main/core/gib.gif"
-public final class CrapParser {
-  private static final Logger logger = Logger.getLogger(CrapParser.class.getName());
+public final class TsvParser {
+  private static final Logger logger = Logger.getLogger(TsvParser.class.getName());
   private static final char sep = '\t';
   final String[] cols;
   final List<String[]> rows;
-  public CrapParser(String pathname) throws IOException {
+  public TsvParser(String pathname) throws IOException {
     int state = 0;
     String[] cols = null;
     List<String[]> rows = new ArrayList<>();
@@ -89,7 +89,7 @@ public final class CrapParser {
 
   public static void main(String[]args)throws Exception {
     String pathname = "/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt";
-    CrapParser changelists = new CrapParser(pathname);
+    TsvParser changelists = new TsvParser(pathname);
     System.out.println(Arrays.toString(changelists.cols));
     System.out.println(Arrays.toString(changelists.rows.get(0)));
     System.out.println(Arrays.toString(changelists.rows.get(1)));

@@ -7,16 +7,16 @@ import java.util.*;
 public class TransformDataToDocumentsMain {
   public static void main(String[]args)throws Exception {
     // ID SEEN_DATE AFFECTED_FILES
-    CrapParser cls = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt");
+    TsvParser cls = new TsvParser("/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt");
 
     // ID CREATE_DATE STATUS CHANGELIST TYPE BUILD_FAILED
     // 1234 18-SEP-13 SKIP|FINISHED 54321 PARTIAL|FULL n|y
-    CrapParser runs = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/runs.txt");
+    TsvParser runs = new TsvParser("/Users/ry23/Dropbox/cmu-sfdc/data/runs.txt");
 
     // ID CREATE_DATE TEST_DETAIL_ID RUN_ID
     // 80001 14-SEP-13 12345 1234
     // 80002 14-SEP-13 12341 1234
-    CrapParser tfs = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/test_failures.txt");
+    TsvParser tfs = new TsvParser("/Users/ry23/Dropbox/cmu-sfdc/data/test_failures.txt");
 
     // build map from run id to test failures
     Map<String, Set<String>> test_failures_by_run_id = new HashMap<>();

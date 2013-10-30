@@ -225,7 +225,7 @@ public class MalletPredictionMain {
   }
 
   private static ChangelistSourceFiles readChangelistToFileMapping(String changelists_tsv) throws IOException {
-    CrapParser cls = new CrapParser(changelists_tsv);
+    TsvParser cls = new TsvParser(changelists_tsv);
     ChangelistSourceFiles changelist_to_file_mapping = new ChangelistSourceFiles();
     for (String[] changelist: cls.rows) {
       for (String file : changelist[2].split("\n")) {
