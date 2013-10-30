@@ -1,21 +1,19 @@
 package ron;
 
 import java.io.*;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.Map.Entry;
 
 public class MalletPredictionMain {
   static final class Topic {
     public final int topicid;
-    public final double d;
+    public final double weight;
     public final Set<String> terms;
     Topic(String s) {
       String[]ar = s.split("\t");
       topicid = Integer.parseInt(ar[0]);
       String[] ar2 = ar[2].split(" ");
-      d = Double.parseDouble(ar[1]);
+      weight = Double.parseDouble(ar[1]);
       terms = new HashSet<>();
       for (int i=1; i<ar2.length; i++) {
         terms.add(ar2[i]);
@@ -40,25 +38,44 @@ public class MalletPredictionMain {
       }
     }
   }
-  public static void main(String[]args)throws Exception {
-    // ID SEEN_DATE AFFECTED_FILES
-    CrapParser cls = new CrapParser("/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt");
-    Map<String, Set<String>> changelist_id_to_files = new HashMap<>();
-    Map<String, String> file_to_changelist_id = new HashMap<>();
-    for (String[] changelist: cls.rows) {
-      for (String file : changelist[2].split("\n")) {
-        Set<String> files = changelist_id_to_files.get(changelist[0]);
-        if (files == null) {
-          changelist_id_to_files.put(changelist[0], files = new HashSet<>());
-        }
-        files.add(file);
-        file_to_changelist_id.put(file, changelist[0]);
-      }
+
+  static class ChangelistSourceFiles {
+    private final Map<String, Set<String>> changelist_id_to_files = new HashMap<>();
+    private final Map<String, String> file_to_changelist_id = new HashMap<>();
+    public String getChangelistId(String source_file) {
+      return file_to_changelist_id.get(source_file);
     }
+    public Set<String> getSourceFiles(String changelist_id) {
+      return changelist_id_to_files.get(changelist_id);
+    }
+  }
 
+  static class SourceFileTestFailures implements LineReader {
+    private final Map<String, List<String>> source_file_to_failure_history = new HashMap<>();
+    private final List<String> source_files = new ArrayList<>();
+    /**
+     * <pre>
+     * docs.txt
+     * longfilename<TAB>testid<TAB>testid
+     * </pre>
+     */
+    @Override public void add(String line) {
+      String[] ar = line.split("\t");
+      source_file_to_failure_history.put(ar[0], new ArrayList<String>(Arrays.asList(ar).subList(1, ar.length)));
+      source_files.add(ar[0]);
+    }
+    public String getSourceFile(int docid) {
+      return source_files.get(docid);
+    }
+  }
 
-    Map<String, Set<String>> changelist_to_failures = new HashMap<>();
-    for (String line : Files.readAllLines(new File("changelist_to_failures_doc.txt").toPath(), Charset.forName("UTF-8"))) {
+  static class ChangelistTestFailures implements LineReader {
+    /**
+     * map from changelist id to unique test id's
+     */
+    private final Map<String, Set<String>> changelist_to_failures = new HashMap<>();
+
+    @Override public void add(String line) {
       String[] ar = line.split("\t");
       Set<String> set = new HashSet<>();
       Set<String> prev = changelist_to_failures.put(ar[0], set);
@@ -69,49 +86,82 @@ public class MalletPredictionMain {
       }
     }
 
-    // ron.topickeys
-    // 6       0.00868 14669524 15841851 15841684 14669525 15841290 14669526 14669523 15841555 14669527 15841611 15841413 15841284 3230927
-    Map<Integer, Topic> topics = new HashMap<>();
-    try (BufferedReader in = new BufferedReader(new FileReader("/Users/ry23/Downloads/malletorig/mallet-2.0.7/ron.topickeys"))) {
-      String line;
-      while (null != (line = in.readLine())) {
-        Topic t = new Topic(line);
-        Topic prev = topics.put(t.topicid, t);
-        if (prev != null) throw new RuntimeException(line);
-      }
+    public Set<Entry<String, Set<String>>> entries() {
+      return changelist_to_failures.entrySet();
+    }
+  }
+  static interface LineReader {
+    void add(String line);
+  }
+
+
+  static class MalletPredictions implements LineReader {
+    /**
+     * map from docid to {@link Doc}
+     */
+    private final Map<Integer, Doc> docs = new HashMap<>();
+
+    public Iterable<Doc> docs() {
+      return docs.values();
     }
 
-    // docs.txt
-    // longfilename<TAB>testid<TAB>testid
-    Map<String, List<String>> source_file_to_failure_history = new HashMap<>();
-    List<String> source_files = new ArrayList<>();
-    try (BufferedReader in = new BufferedReader(new FileReader("/Users/ry23/Downloads/malletorig/mallet-2.0.7/docs.txt"))) {
-      String line;
-      while (null != (line = in.readLine())) {
-        String[] ar = line.split("\t");
-        source_file_to_failure_history.put(ar[0], new ArrayList<String>(Arrays.asList(ar).subList(1, ar.length)));
-        source_files.add(ar[0]);
-      }
+    /**
+     * <pre>
+     * ron.output
+     * #doc source topic proportion ...
+     * 0 null-source 25 0.6308917995984609 55 0.3519917627322033 96 0.014500541834220186 79 0.0010402955565968202
+     * </pre>
+     */
+    @Override public void add(String line) {
+      Doc d = new Doc(line);
+      Doc prev = docs.put(d.docid, d);
+      if (prev != null) throw new RuntimeException(line);
+    }
+  }
+
+
+  /**
+   * map from topic id to test id's
+   */
+  static class Topics implements LineReader {
+    private final Map<Integer, Topic> topics = new HashMap<>();
+
+    /**
+     * <pre>
+     * ron.topickeys
+     * 6       0.00868 14669524 15841851 15841684 14669525 15841290 14669526 14669523 15841555 14669527 15841611 15841413 15841284 3230927
+     * </pre>
+     */
+    @Override public void add(String line) {
+      Topic t = new Topic(line);
+      Topic prev = topics.put(t.topicid, t);
+      if (prev != null) throw new RuntimeException(line);
     }
 
-    // ron.output
-    // #doc source topic proportion ...
-    // 0 null-source 25 0.6308917995984609 55 0.3519917627322033 96 0.014500541834220186 79 0.0010402955565968202
-    Map<Integer, Doc> docs = new HashMap<>();
-    try (BufferedReader in = new BufferedReader(new FileReader("/Users/ry23/Downloads/malletorig/mallet-2.0.7/ron.output"))) {
-      String line = in.readLine(); // skip first line
-      while (null != (line = in.readLine())) {
-        Doc d = new Doc(line);
-        Doc prev = docs.put(d.docid, d);
-        if (prev != null) throw new RuntimeException(line);
-      }
+    public Iterable<Topic>topics() {
+      return topics.values();
     }
+  }
+
+  public static void main(String[]args)throws Exception {
+    // ID SEEN_DATE AFFECTED_FILES
+    String changelists_tsv = "/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt";
+    String mallet_output = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/ron.output";
+    String changelist_to_failures_filename = "changelist_to_failures_doc.txt";
+    String topic_keys_filename = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/ron.topickeys";
+    String docs_txt = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/docs.txt";
+
+    ChangelistSourceFiles changelist_to_file_mapping = readChangelistToFileMapping(changelists_tsv);
+    ChangelistTestFailures changelist_to_failures = handle(new ChangelistTestFailures(), changelist_to_failures_filename);
+    Topics topics = handle(new Topics(), topic_keys_filename);
+    SourceFileTestFailures source_file_to_failure_history = handle(new SourceFileTestFailures(), docs_txt);
+    MalletPredictions docs = handle(new MalletPredictions(), mallet_output);
 
     {
       // evaluate performance for a single test
       List<Topic> relevant_topics = new ArrayList<>();
       String test_id = "15578983";
-      for (Topic t : topics.values()) {
+      for (Topic t : topics.topics()) {
         if (t.terms.contains(test_id)) {
           relevant_topics.add(t);
         }
@@ -119,7 +169,8 @@ public class MalletPredictionMain {
 
       List<Prediction> predictions = new ArrayList<>();
 
-      List<Entry<String, Set<String>>> list = new ArrayList<>(changelist_to_failures.entrySet());
+      List<Entry<String, Set<String>>> list = new ArrayList<>(changelist_to_failures.entries());
+      // for every pair of changelists
       for (int i=0; i<list.size(); i++) {
         Entry<String, Set<String>> e = list.get(i);
         String changelist_id = e.getKey();
@@ -129,20 +180,20 @@ public class MalletPredictionMain {
         }
       }
 
-      for (Doc d : docs.values()) {
+      for (Doc d : docs.docs()) {
         double score = 0;
         for (Topic t : relevant_topics) {
           for (int i=0; i<d.topicids.length; i++) {
             if (d.topicids[i] == t.topicid) {
-              score += t.d * d.topicweights[i];
+              score += t.weight * d.topicweights[i];
             }
           }
         }
-        String source_file = source_files.get(d.docid);
-        String changelist_id = file_to_changelist_id.get(source_file);
-        Set<String> all_source_files = changelist_id_to_files.get(changelist_id);
+        String source_file = source_file_to_failure_history.getSourceFile(d.docid);
+        String changelist_id = changelist_to_file_mapping.getChangelistId(source_file);
+        Set<String> all_source_files = changelist_to_file_mapping.getSourceFiles(changelist_id);
 
-        List<String> actual_failures = source_file_to_failure_history.get(source_file);
+        List<String> actual_failures = source_file_to_failure_history.source_file_to_failure_history.get(source_file);
         int count = 0;
         for (String s : actual_failures) {
           if (test_id.equals(s)) {
@@ -171,6 +222,32 @@ public class MalletPredictionMain {
       System.out.println(numcorrect +" correct, out of " + total);
     }
 
+  }
+
+  private static ChangelistSourceFiles readChangelistToFileMapping(String changelists_tsv) throws IOException {
+    CrapParser cls = new CrapParser(changelists_tsv);
+    ChangelistSourceFiles changelist_to_file_mapping = new ChangelistSourceFiles();
+    for (String[] changelist: cls.rows) {
+      for (String file : changelist[2].split("\n")) {
+        Set<String> files = changelist_to_file_mapping.changelist_id_to_files.get(changelist[0]);
+        if (files == null) {
+          changelist_to_file_mapping.changelist_id_to_files.put(changelist[0], files = new HashSet<>());
+        }
+        files.add(file);
+        changelist_to_file_mapping.file_to_changelist_id.put(file, changelist[0]);
+      }
+    }
+    return changelist_to_file_mapping;
+  }
+
+  private static <T extends LineReader> T handle(T lineReader, String filename) throws IOException {
+    try (BufferedReader in = new BufferedReader(new FileReader(filename))) {
+      String line = in.readLine(); // skip first line
+      while (null != (line = in.readLine())) {
+        lineReader.add(line);
+     }
+    }
+    return lineReader;
   }
 
   static class Prediction {
