@@ -4,6 +4,9 @@ import io.TsvParser;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * For each changelist, what source files are in it
+ */
 public class ChangelistSourceFiles {
   final Map<String, Set<String>> changelist_id_to_files = new HashMap<>();
   final Map<String, String> file_to_changelist_id = new HashMap<>();

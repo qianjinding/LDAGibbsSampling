@@ -1,5 +1,8 @@
 package data;
 
+/**
+ * a document is composed of topics and their weights
+ */
 public final class Doc {
   public final int docid;
   public final int[] topicids;

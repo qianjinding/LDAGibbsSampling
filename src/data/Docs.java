@@ -4,9 +4,12 @@ import io.LineReader;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MalletPredictions extends LineReader {
+/**
+ * map from doc id to {@link data.Doc}
+ */
+public class Docs extends LineReader {
   /**
-   * map from docid to {@link Doc}
+   * map from docid to {@link data.Doc}
    */
   private final Map<Integer, Doc> docs = new HashMap<>();
 

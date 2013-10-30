@@ -1,5 +1,8 @@
 package data;
 
+/**
+ * Simple object to hold the results of a prediction
+ */
 public class Prediction {
   public final int docid;
   public final double score;

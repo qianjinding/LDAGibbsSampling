@@ -3,6 +3,10 @@ package data;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Simple object holding at topic's id, its overall weight in the corpus, and the set of words
+ * comprising the topic
+ */
 public final class Topic {
   public final int topicid;
   public final double weight;

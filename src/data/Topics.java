@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * map from topic id to test id's
+ * map from topic id to {@link data.Topic}
  */
 public class Topics extends LineReader {
   private final Map<Integer, Topic> topics = new HashMap<>();

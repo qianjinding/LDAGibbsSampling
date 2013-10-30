@@ -4,6 +4,9 @@ import io.LineReader;
 import java.util.*;
 import java.util.Map.Entry;
 
+/**
+ * For each changelist, what was the set of new test failures
+ */
 public class ChangelistTestFailures extends LineReader {
   /**
    * map from changelist id to unique test id's

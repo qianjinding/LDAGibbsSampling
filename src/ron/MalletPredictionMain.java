@@ -18,7 +18,7 @@ public class MalletPredictionMain {
     ChangelistTestFailures changelist_to_failures = LineReader.handle(new ChangelistTestFailures(), changelist_to_failures_filename);
     Topics topics = LineReader.handle(new Topics(), topic_keys_filename);
     SourceFileTestFailures source_file_to_failure_history = LineReader.handle(new SourceFileTestFailures(), docs_txt);
-    MalletPredictions docs = LineReader.handle(new MalletPredictions(), mallet_output);
+    Docs docs = LineReader.handle(new Docs(), mallet_output);
 
     {
       // evaluate performance for a single test

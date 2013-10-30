@@ -3,6 +3,10 @@ package data;
 import io.LineReader;
 import java.util.*;
 
+/**
+ * Historically, what were the test failures caused by changelists containing this source file.
+ * With repetition.
+ */
 public class SourceFileTestFailures extends LineReader {
   final Map<String, List<String>> source_file_to_failure_history = new HashMap<>();
   private final List<String> source_files = new ArrayList<>();
