@@ -1,4 +1,4 @@
-package ron;
+package io;
 
 import java.io.*;
 import java.nio.charset.Charset;
@@ -15,8 +15,8 @@ import java.util.logging.Logger;
 public final class TsvParser {
   private static final Logger logger = Logger.getLogger(TsvParser.class.getName());
   private static final char sep = '\t';
-  final String[] cols;
-  final List<String[]> rows;
+  private final String[] cols;
+  private final List<String[]> rows;
   public TsvParser(String pathname) throws IOException {
     int state = 0;
     String[] cols = null;
@@ -95,5 +95,19 @@ public final class TsvParser {
     System.out.println(Arrays.toString(changelists.rows.get(1)));
     System.out.println(Arrays.toString(changelists.rows.get(2)));
     System.out.println(Arrays.toString(changelists.rows.get(3)));
+  }
+
+
+  public int size() {
+    return rows.size();
+  }
+
+  public Iterable<String[]> rows() {
+    return rows;
+  }
+
+
+  public String[] getRow(int i) {
+    return rows.get(i);
   }
 }
