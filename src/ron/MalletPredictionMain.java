@@ -4,6 +4,8 @@ import io.LineReader;
 import java.util.*;
 import java.util.Map.Entry;
 import data.*;
+import data.Docs.Doc;
+import data.Topics.Topic;
 
 public class MalletPredictionMain {
   public static void main(String[]args)throws Exception {

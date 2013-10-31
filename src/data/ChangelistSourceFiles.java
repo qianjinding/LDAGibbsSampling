@@ -10,6 +10,8 @@ import java.util.*;
 public class ChangelistSourceFiles {
   final Map<String, Set<String>> changelist_id_to_files = new HashMap<>();
   final Map<String, String> file_to_changelist_id = new HashMap<>();
+  final List<Changelist> changelists = new ArrayList<>();
+
   public String getChangelistId(String source_file) {
     return file_to_changelist_id.get(source_file);
   }
@@ -24,11 +26,25 @@ public class ChangelistSourceFiles {
         Set<String> files = changelist_to_file_mapping.changelist_id_to_files.get(changelist[0]);
         if (files == null) {
           changelist_to_file_mapping.changelist_id_to_files.put(changelist[0], files = new HashSet<>());
+          changelist_to_file_mapping.changelists.add(new Changelist(changelist[0], files));
         }
         files.add(file);
         changelist_to_file_mapping.file_to_changelist_id.put(file, changelist[0]);
       }
     }
     return changelist_to_file_mapping;
+  }
+  public Iterable<Changelist> changelists() {
+    return changelists;
+  }
+
+  public static class Changelist {
+    public final String changelist_id;
+    public final Set<String> files;
+    public Changelist(String changelist_id, Set<String> files) {
+      this.changelist_id = changelist_id;
+      this.files = files;
+    }
+
   }
 }
