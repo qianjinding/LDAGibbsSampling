@@ -16,11 +16,11 @@ import java.util.Map.Entry;
 
 import io.TsvParser;
 import cmu.InstanceImporter.TrainerType;
+import data.Prediction;
 
 
 public class TrainAndPredict {
 
-  
   ParallelTopicModel currentModel;
   TopicInferencer currentInferencer;
   
@@ -88,17 +88,6 @@ public class TrainAndPredict {
     }
      return cListID;
   }
-  
-//  public Set<String> randomTestFailures(int numFailures) {
-//    // pick some random test ids as failures
-//    Set<String> failures = new HashSet<>();
-//    while (failures.size() < numFailures) {
-//      int alphabetID = new Randoms().nextInt(currentModel.getAlphabet().size());
-//      String testID = (String)currentModel.getAlphabet().lookupObject(alphabetID);
-//      failures.add(testID);
-//    }
-//    return failures;
-//  }
   
   // predict on all files
   public List<Prediction> predictFailures(InstanceList testingDocs, String test_id) throws IOException

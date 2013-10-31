@@ -18,11 +18,6 @@ public class InstanceImporter {
 	//EnumMap<TrainerType, Pipe> pipes;
 	
 	public InstanceImporter() {
-
-		// Regular expression for what constitutes a token.
-		//  This pattern includes Unicode letters, Unicode numbers, 
-		//   and the underscore character. Alternatives:
-		//    "\\S+"   (anything not whitespace)
 		
 	}
 
