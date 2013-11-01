@@ -202,7 +202,7 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
   // returns {precision, recall, accuracy, true negative rate}
   // where precision is the ratio of  true failures to predicted failures
   // recall is the ratio of true failures to actual failures 
-  // accuracy is the ratio of correct predictions (including predicted not to fail) to all predications
+  // accuracy is the ratio of correct predictions (including predicted not to fail) to all predictions
   // true negative rate is the ratio of true negatives (not predicted to fail) to predicted negatives
   public  double[] evaluatePredictionAccuracy(List<Prediction> predictions) {
     int total = 0;
@@ -239,8 +239,6 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
 
     }
 
-   
-    
     double precision = (double)truePositiveCount/(truePositiveCount + falsePositiveCount);
     double recall = (double)truePositiveCount/(truePositiveCount + falseNegativeCount);
     double accuracy = (double)(truePositiveCount + trueNegativeCount)/(truePositiveCount + trueNegativeCount + falseNegativeCount + falsePositiveCount);
@@ -257,7 +255,7 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
      model.setOptimizeInterval(20);
      model.setNumThreads(4);
 
-     model.setNumIterations(500);
+     model.setNumIterations(1000);
      model.estimate();
 
      currentModel = model;
@@ -304,62 +302,58 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
   // do K-fold validation - divide dataset in K parts: train on 1 part and test on the remaining K-1
   // ... then do it K-1 more times
   public void testModel(int nFolds, String test_id, InstanceList instancesToSplit) throws IOException {
-  double stats[][] = new double[nFolds][] ;
- 
-  CrossValidationIterator folds = instancesToSplit.crossValidationIterator(nFolds);
-  for (int i = 0; i<nFolds; i++) {
-    InstanceList partition[] = folds.nextSplit();
-    trainNewModel(partition[0]);
-    double s[] = evaluatePredictionAccuracy(predictFailures(partition[1], test_id));
-    stats[i] = s;
+    double stats[][] = new double[nFolds][] ;
+
+    CrossValidationIterator folds = instancesToSplit.crossValidationIterator(nFolds);
+    for (int i = 0; i<nFolds; i++) {
+      InstanceList partition[] = folds.nextSplit();
+      trainNewModel(partition[0]);
+      double s[] = evaluatePredictionAccuracy(predictFailures(partition[1], test_id));
+      stats[i] = s;
+    }
+    System.out.println("Results: ");
+    System.out.println("Precision\t\tRecall\t\tAccuracy\t\tTNR");
+    for (double s[] : stats) {
+      for (double d : s) 
+        System.out.printf("%.4f\t\t", d);
+      System.out.println();
+    }
   }
-  System.out.println("Results: ");
-  System.out.println("Precision\t\tRecall\t\tAccuracy\t\tTNR");
-  for (double s[] : stats) {
-    for (double d : s) 
-      System.out.printf("%.4f\t\t", d);
-    System.out.println();
-  }
-  }
-  
+
   public static void main (String[] args) throws Exception {
  
     TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt", "/Users/abannis/CourseWork/18697/project/data/changelist_to_failures_doc.txt");
-
-    // load data from file if available, else recreate model, inferencer and pipe
-    File modelFile = null;
-    if (args.length > 0) {
-      modelFile = new File(args[0]);
-      try {
-        t.load(modelFile);
-      } catch (IOException e) {
-      }
-    }
-    
-    if (t.currentModel == null) {
-      InstanceImporter importer = new InstanceImporter();
-      InstanceList topic_instances = importer.readFile("/Users/abannis/CourseWork/18697/project/data/docs.txt");
-      t.trainNewModel(topic_instances);
-    }
-    
-    if (modelFile != null) {
-      t.save(modelFile);
-    }
+    InstanceImporter importer = new InstanceImporter();
+    InstanceList topic_instances = importer.readFile("/Users/abannis/CourseWork/18697/project/data/docs.txt");
    
+    // load data from file if available, else recreate model, inferencer and pipe
+//    File modelFile = null;
+//    if (args.length > 0) {
+//      modelFile = new File(args[0]);
+//      try {
+//        t.load(modelFile);
+//      } catch (IOException e) {
+//      }
+//    }
+//    
+//    if (t.currentModel == null) {
+//     t.trainNewModel(topic_instances);
+//    }
+//    
+//    if (modelFile != null) {
+//      t.save(modelFile);
+//    }
     
-    String changelistID = t.randomChangelistID();
-    Set<String> files = t.changelist_id_to_files.get(changelistID);
-    Set<String> failures = t.changelist_to_failures.get(changelistID);
+//    String changelistID = t.randomChangelistID();
+//    Set<String> files = t.changelist_id_to_files.get(changelistID);
+//    Set<String> failures = t.changelist_to_failures.get(changelistID);
+//    
+//    Map<String, String> causes=  t.predictBlame(failures, files);
+//    System.out.printf("Assigning blame for changelist %s: %d files changed and %d failures\n", changelistID, files.size(), failures.size());
+//    for (Entry<String, String> e : causes.entrySet()) {
+//      System.out.println(e.getKey()+"\t"+e.getValue());
+//    }
     
-    Map<String, String> causes=  t.predictBlame(failures, files);
-    System.out.printf("Assigning blame for changelist %s: %d files changed and %d failures\n", changelistID, files.size(), failures.size());
-    for (Entry<String, String> e : causes.entrySet()) {
-      System.out.println(e.getKey()+"\t"+e.getValue());
-    }
-    
-
-
+      t.testModel(5, "14842196", topic_instances);
   }
-
-
 }
