@@ -1,10 +1,11 @@
 package ron;
 
+import io.LineReader;
 import io.ProgressTracker;
-import io.TsvParser;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 import data.*;
 
 public class MapSourceFilesToNewFailures {
@@ -16,9 +17,7 @@ public class MapSourceFilesToNewFailures {
 
     ChangelistSourceFiles cls = ChangelistSourceFiles.readChangelistToFileMapping(changelists_tsv);
 
-    // ID CREATE_DATE STATUS CHANGELIST TYPE BUILD_FAILED
-    // 1234 18-SEP-13 SKIP|FINISHED 54321 PARTIAL|FULL n|y
-    TsvParser runs = new TsvParser(runs_tsv);
+    Runs runs = LineReader.handle(true, new Runs(), runs_tsv);
 
     TestFailuresByRun test_failures_by_run_id = TestFailuresByRun.readTestFailures(test_failures_tsv);
 

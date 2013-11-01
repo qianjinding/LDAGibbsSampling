@@ -1,7 +1,6 @@
 package ron;
 
-import io.ProgressTracker;
-import io.TsvParser;
+import io.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.*;
@@ -18,7 +17,7 @@ public class MapChangelistsToNewFailuresMain {
 
     // ID CREATE_DATE STATUS CHANGELIST TYPE BUILD_FAILED
     // 1234 18-SEP-13 SKIP|FINISHED 54321 PARTIAL|FULL n|y
-    TsvParser runs = new TsvParser(runs_tsv);
+    Runs runs = LineReader.handle(false, new Runs(), runs_tsv);
 
     TestFailuresByRun test_failures_by_run_id = TestFailuresByRun.readTestFailures(test_failures_tsv);
 

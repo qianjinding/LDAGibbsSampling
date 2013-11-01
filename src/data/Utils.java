@@ -1,9 +1,9 @@
 package data;
 
-import io.TsvParser;
 import java.util.*;
 import java.util.Map.Entry;
 import data.ChangelistSourceFiles.Changelist;
+import data.Runs.Run;
 
 public class Utils {
   private Utils() {}
@@ -29,24 +29,26 @@ public class Utils {
   /**
    * Figures out the new failures
    */
-  public static Map<String, Map<String, Integer>> get_new_failures_by_changelist(ChangelistSourceFiles cls,
-      TsvParser runs, TestFailuresByRun test_failures_by_run_id) {
+  public static Map<String, Map<String, Integer>> get_new_failures_by_changelist(
+      ChangelistSourceFiles cls,
+      Runs runs,
+      TestFailuresByRun test_failures_by_run_id) {
       // for each run, create pointer back to most recent full run that
       // finished and did not fail
       int ptr = -1;
       int[] prev_full_run_idxs = new int[runs.size()];
       int[] next_full_run_idxs = new int[runs.size()];
       for (int i=0; i<prev_full_run_idxs.length; i++) {
-        String[] row = runs.getRow(i);
+        Run run = runs.getRunAtIndex(i);
         prev_full_run_idxs[i] = ptr;
-        if ("FINISHED".equals(row[2]) && "FULL".equals(row[4]) && "n".equals(row[5])) {
+        if ("FINISHED".equals(run.status) && "FULL".equals(run.type) && "n".equals(run.build_failed)) {
           ptr = i;
         }
       }
       ptr = -1;
       for (int i=prev_full_run_idxs.length - 1; i>= 0; i--) {
-        String[] row = runs.getRow(i);
-        if ("FINISHED".equals(row[2]) && "FULL".equals(row[4]) && "n".equals(row[5])) {
+        Run run = runs.getRunAtIndex(i);
+        if ("FINISHED".equals(run.status) && "FULL".equals(run.type) && "n".equals(run.build_failed)) {
           ptr = i;
         }
         next_full_run_idxs[i] = ptr;
@@ -57,10 +59,10 @@ public class Utils {
       // one run for each changelist.
       Map<String, TreeSet<Integer>> changelist_id_to_run_idxs = new HashMap<>();
       int index = 0;
-      for (String[] run : runs.rows()) {
-        TreeSet<Integer> prev = changelist_id_to_run_idxs.get(run[3]);
+      for (Run run : runs.runs()) {
+        TreeSet<Integer> prev = changelist_id_to_run_idxs.get(run.changelistid);
         if (prev == null) {
-          changelist_id_to_run_idxs.put(run[3], prev = new TreeSet<Integer>());
+          changelist_id_to_run_idxs.put(run.changelistid, prev = new TreeSet<Integer>());
         }
         // if it were the case that a single changelist didn't have multiple
         // preceding or interceding full runs, then this for loop could be
@@ -102,8 +104,8 @@ public class Utils {
           System.err.println(changelist_id+": skipping due to lack of succeeding full run");
           continue;
         }
-        String prev_full_run_id = runs.getRow(prev_full_run_idx)[0];
-        String next_full_run_id = runs.getRow(next_full_run_idx)[0];
+        int prev_full_run_id = runs.getRunAtIndex(prev_full_run_idx).runid;
+        int next_full_run_id = runs.getRunAtIndex(next_full_run_idx).runid;
         Set<String> starting_failures = test_failures_by_run_id.getTestFailures(prev_full_run_id);
         Set<String> ending_failures = test_failures_by_run_id.getTestFailures(next_full_run_id);
         Set<String> new_failures = new HashSet<>(ending_failures);
