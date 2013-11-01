@@ -31,4 +31,7 @@ public class SourceFileTestFailures extends LineReader {
   public List<String> getFailures(String source_file) {
     return map.get(source_file);
   }
+  public int size() {
+    return source_files.size();
+  }
 }

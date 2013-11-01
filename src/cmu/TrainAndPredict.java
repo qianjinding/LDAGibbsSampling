@@ -191,7 +191,7 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
     for (Prediction p : predictions) {
         if (p.score > highScore) {
           highScore = p.score;
-          blame.put(test_id, p.source_file);
+          blame.put(test_id, p.description);
         }
     }
   }

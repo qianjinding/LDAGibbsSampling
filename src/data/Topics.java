@@ -33,6 +33,9 @@ public class Topics extends LineReader {
   public static final class Topic {
     public final int topicid;
     public final double weight;
+    /**
+     * test id's
+     */
     public final Set<String> terms;
     Topic(String s) {
       String[]ar = s.split("\t");

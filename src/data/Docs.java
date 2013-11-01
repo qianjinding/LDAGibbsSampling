@@ -51,4 +51,8 @@ public class Docs extends LineReader {
       }
     }
   }
+
+  public Doc getDoc(int docid) {
+    return docs.get(docid);
+  }
 }

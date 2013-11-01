@@ -12,7 +12,7 @@ public class MalletPredictionMain {
     //String basedir = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/";
     String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
     String changelists_tsv = basedir+"changelists.txt";
-    String mallet_output = basedir+"ron.output";
+    String mallet_output_filename = basedir+"ron.output";
     String changelist_to_failures_filename = basedir + "changelist_to_failures_doc.txt";
     String topic_keys_filename = basedir+"ron.topickeys";
     String source_file_to_failure_history_txt = basedir+"docs.txt";
@@ -20,8 +20,17 @@ public class MalletPredictionMain {
     ChangelistSourceFiles changelist_to_file_mapping = ChangelistSourceFiles.readChangelistToFileMapping(changelists_tsv);
     ChangelistTestFailures changelist_to_failures = LineReader.handle(false, new ChangelistTestFailures(), changelist_to_failures_filename);
     Topics topics = LineReader.handle(false, new Topics(), topic_keys_filename);
-    SourceFileTestFailures source_file_to_failure_history = LineReader.handle(false, new SourceFileTestFailures(), source_file_to_failure_history_txt);
-    Docs docs = LineReader.handle(true, new Docs(), mallet_output);
+    List<String> sourcefilenames = new ArrayList<>();
+    Map<String, Integer> source_filename_to_docid = new HashMap<>();
+    {
+      SourceFileTestFailures source_file_to_failure_history = LineReader.handle(false, new SourceFileTestFailures(), source_file_to_failure_history_txt);
+      for (int i=0; i< source_file_to_failure_history.size(); i++) {
+        String source_file_name = source_file_to_failure_history.getSourceFile(i);
+        sourcefilenames.add(source_file_name);
+        source_filename_to_docid.put(source_file_name, source_filename_to_docid.size());
+      }
+    }
+    Docs mallet_output = LineReader.handle(true, new Docs(), mallet_output_filename);
 
     {
       // evaluate performance for a single test
@@ -35,38 +44,32 @@ public class MalletPredictionMain {
 
       List<Prediction> predictions = new ArrayList<>();
 
-      List<Entry<String, Set<String>>> list = new ArrayList<>(changelist_to_failures.entries());
+      List<Entry<String, Set<String>>> changelists = new ArrayList<>(changelist_to_failures.entries());
       // for every pair of changelists
-      for (int i=0; i<list.size(); i++) {
-        Entry<String, Set<String>> e = list.get(i);
+      for (int i=0; i<changelists.size(); i++) {
+        Entry<String, Set<String>> e = changelists.get(i);
         String changelist_id = e.getKey();
         Set<String> failures = e.getValue();
-        for (int j=i+1; i<list.size(); i++) {
-
+        int actual_failure_count;
+        if (failures.contains(test_id)) {
+          actual_failure_count = 1;
+        } else {
+          actual_failure_count = 0;
         }
-      }
-
-      for (Doc d : docs.docs()) {
         double score = 0;
-        for (Topic t : relevant_topics) {
-          for (int i=0; i<d.topicids.length; i++) {
-            if (d.topicids[i] == t.topicid) {
-              score += t.weight * d.topicweights[i];
+        for (String source_file : changelist_to_file_mapping.getSourceFiles(changelist_id)) {
+          int docid = source_filename_to_docid.get(source_file);
+          Doc doc = mallet_output.getDoc(docid);
+          for (Topic t : relevant_topics) {
+            for (int j=0; j<doc.topicids.length; j++) {
+              if (doc.topicids[j] == t.topicid) {
+                score += t.weight * doc.topicweights[j];
+              }
             }
           }
         }
-        String source_file = source_file_to_failure_history.getSourceFile(d.docid);
-        String changelist_id = changelist_to_file_mapping.getChangelistId(source_file);
-        Set<String> all_source_files = changelist_to_file_mapping.getSourceFiles(changelist_id);
-
-        List<String> actual_failures = source_file_to_failure_history.getFailures(source_file);
-        int count = 0;
-        for (String s : actual_failures) {
-          if (test_id.equals(s)) {
-            count++;
-          }
-        }
-        predictions.add(new Prediction(d.docid, score, count, source_file));
+        Prediction prediction = new Prediction(Integer.parseInt(changelist_id), score, actual_failure_count, changelist_id /* maybe list of filenames? */);
+        predictions.add(prediction);
       }
 
       int total = 0;
