@@ -5,9 +5,7 @@ import io.TsvParser;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.*;
-import java.util.Map.Entry;
-import data.ChangelistSourceFiles;
-import data.TestFailuresByRun;
+import data.*;
 
 public class MapSourceFilesToNewFailures {
   public static void main(String[]args)throws Exception {
@@ -24,14 +22,14 @@ public class MapSourceFilesToNewFailures {
 
     TestFailuresByRun test_failures_by_run_id = TestFailuresByRun.readTestFailures(test_failures_tsv);
 
-    Map<String, Map<String, Integer>> changelist_to_failures = MapChangelistsToNewFailuresMain.get_new_failures_by_changelist(cls, runs,
+    Map<String, Map<String, Integer>> changelist_to_failures = Utils.get_new_failures_by_changelist(cls, runs,
         test_failures_by_run_id);
 
     Map<String, Map<String, Integer>> source_file_to_failures = new HashMap<>();
     // additional xform step required to accumulate test failure counts by source file
     for (Map.Entry<String, Map<String, Integer>> e : changelist_to_failures.entrySet()) {
       for (String source_file : cls.getSourceFiles(e.getKey())) {
-        increment(source_file_to_failures, source_file, e.getValue());
+        Utils.increment(source_file_to_failures, source_file, e.getValue());
       }
     }
 
@@ -57,15 +55,4 @@ public class MapSourceFilesToNewFailures {
       }
     }
   }
-
-  private static void increment(Map<String, Map<String, Integer>> m, String key, Map<String, Integer> values) {
-    Map<String, Integer> prev = m.get(key);
-    if (prev == null) {
-      m.put(key, prev = new HashMap<>());
-    }
-    for (Entry<String, Integer> e : values.entrySet()) {
-      Integer oldcount = prev.get(e.getKey());
-      prev.put(e.getKey(), (oldcount == null ? 0 : oldcount.intValue()) + e.getValue());
-    }
-   }
 }
