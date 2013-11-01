@@ -55,7 +55,7 @@ public class MalletPredictionMain {
             }
           }
         }
-        String source_file = source_file_to_failure_history.getSourceFile(d.docid.id);
+        String source_file = source_file_to_failure_history.getSourceFile(d.docid);
         String changelist_id = changelist_to_file_mapping.getChangelistId(source_file);
         Set<String> all_source_files = changelist_to_file_mapping.getSourceFiles(changelist_id);
 
