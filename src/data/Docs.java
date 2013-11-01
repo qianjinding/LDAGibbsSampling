@@ -11,7 +11,7 @@ public class Docs extends LineReader {
   /**
    * map from docid to {@link data.Doc}
    */
-  private final Map<Integer, Doc> docs = new HashMap<>();
+  private final Map<DocId, Doc> docs = new HashMap<>();
 
   public Iterable<Doc> docs() {
     return docs.values();
@@ -34,12 +34,12 @@ public class Docs extends LineReader {
    * a document is composed of topics and their weights
    */
   public static final class Doc {
-    public final int docid;
+    public final DocId docid;
     public final int[] topicids;
     public final double[] topicweights;
     public Doc(String line) {
       String[] ar = line.split(" ");
-      docid = Integer.parseInt(ar[0]);
+      docid = new DocId(Integer.parseInt(ar[0]));
       if (!"null-source".equals(ar[1])) throw new RuntimeException(line);
       int n = ar.length/2 - 1;
       if (n * 2 + 2 != ar.length) throw new RuntimeException(n+" " + line);
@@ -50,5 +50,31 @@ public class Docs extends LineReader {
         topicweights[x] = Double.parseDouble(ar[2 + x * 2 + 1]);
       }
     }
+  }
+  public static final class DocId {
+    public final int id;
+
+    public DocId(int id) {
+      this.id = id;
+    }
+
+    @Override public int hashCode() {
+      final int prime = 31;
+      int result = 1;
+      result = prime * result + id;
+      return result;
+    }
+
+    @Override public boolean equals(Object obj) {
+      if (this == obj) return true;
+      if (obj == null) return false;
+      if (getClass() != obj.getClass()) return false;
+      DocId other = (DocId) obj;
+      if (id != other.id) return false;
+      return true;
+    }
+
+
+
   }
 }

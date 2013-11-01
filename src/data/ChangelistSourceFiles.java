@@ -18,6 +18,12 @@ public class ChangelistSourceFiles {
   public Set<String> getSourceFiles(String changelist_id) {
     return changelist_id_to_files.get(changelist_id);
   }
+
+  /**
+   * <pre>
+   * ID SEEN_DATE AFFECTED_FILES
+   * </pre>
+   */
   public static ChangelistSourceFiles readChangelistToFileMapping(String changelists_tsv) throws IOException {
     TsvParser cls = new TsvParser(changelists_tsv);
     ChangelistSourceFiles changelist_to_file_mapping = new ChangelistSourceFiles();

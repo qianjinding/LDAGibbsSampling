@@ -9,18 +9,19 @@ import data.Topics.Topic;
 
 public class MalletPredictionMain {
   public static void main(String[]args)throws Exception {
-    // ID SEEN_DATE AFFECTED_FILES
-    String changelists_tsv = "/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt";
-    String mallet_output = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/ron.output";
-    String changelist_to_failures_filename = "changelist_to_failures_doc.txt";
-    String topic_keys_filename = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/ron.topickeys";
-    String docs_txt = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/docs.txt";
+    //String basedir = "/Users/ry23/Downloads/malletorig/mallet-2.0.7/";
+    String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
+    String changelists_tsv = basedir+"changelists.txt";
+    String mallet_output = basedir+"ron.output";
+    String changelist_to_failures_filename = basedir + "changelist_to_failures_doc.txt";
+    String topic_keys_filename = basedir+"ron.topickeys";
+    String source_file_to_failure_history_txt = basedir+"docs.txt";
 
     ChangelistSourceFiles changelist_to_file_mapping = ChangelistSourceFiles.readChangelistToFileMapping(changelists_tsv);
-    ChangelistTestFailures changelist_to_failures = LineReader.handle(new ChangelistTestFailures(), changelist_to_failures_filename);
-    Topics topics = LineReader.handle(new Topics(), topic_keys_filename);
-    SourceFileTestFailures source_file_to_failure_history = LineReader.handle(new SourceFileTestFailures(), docs_txt);
-    Docs docs = LineReader.handle(new Docs(), mallet_output);
+    ChangelistTestFailures changelist_to_failures = LineReader.handle(false, new ChangelistTestFailures(), changelist_to_failures_filename);
+    Topics topics = LineReader.handle(false, new Topics(), topic_keys_filename);
+    SourceFileTestFailures source_file_to_failure_history = LineReader.handle(false, new SourceFileTestFailures(), source_file_to_failure_history_txt);
+    Docs docs = LineReader.handle(true, new Docs(), mallet_output);
 
     {
       // evaluate performance for a single test
@@ -54,7 +55,7 @@ public class MalletPredictionMain {
             }
           }
         }
-        String source_file = source_file_to_failure_history.getSourceFile(d.docid);
+        String source_file = source_file_to_failure_history.getSourceFile(d.docid.id);
         String changelist_id = changelist_to_file_mapping.getChangelistId(source_file);
         Set<String> all_source_files = changelist_to_file_mapping.getSourceFiles(changelist_id);
 

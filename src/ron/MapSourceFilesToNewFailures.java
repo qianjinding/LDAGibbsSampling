@@ -11,9 +11,10 @@ import data.TestFailuresByRun;
 
 public class MapSourceFilesToNewFailures {
   public static void main(String[]args)throws Exception {
-    String changelists_tsv = "/Users/ry23/Dropbox/cmu-sfdc/data/changelists.txt";
-    String runs_tsv = "/Users/ry23/Dropbox/cmu-sfdc/data/runs.txt";
-    String test_failures_tsv = "/Users/ry23/Dropbox/cmu-sfdc/data/test_failures.txt";
+    String basedir = "/Users/ry23/Dropbox/cmu-sfdc/data/";
+    String changelists_tsv = basedir+"changelists.txt";
+    String runs_tsv = basedir+"runs.txt";
+    String test_failures_tsv = basedir+"test_failures.txt";
 
     ChangelistSourceFiles cls = ChangelistSourceFiles.readChangelistToFileMapping(changelists_tsv);
 
