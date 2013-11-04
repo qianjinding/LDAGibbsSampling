@@ -14,7 +14,7 @@ import java.io.*;
 import java.util.*;
 import java.util.Map.Entry;
 
-import io.TsvParser;
+import io.Tsv;
 import cmu.InstanceImporter.TrainerType;
 import data.Prediction;
 
@@ -33,9 +33,9 @@ public class TrainAndPredict {
   public TrainAndPredict(String changelist_file, String changelist_failure_file)
   {
     
-    TsvParser cls;
+    Tsv cls;
     try {
-      cls = new TsvParser(changelist_file);
+      cls = new Tsv(changelist_file);
       
       // ID SEEN_DATE AFFECTED_FILES
       changelist_id_to_files = new HashMap<>();

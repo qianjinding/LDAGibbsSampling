@@ -1,6 +1,6 @@
 package data;
 
-import io.TsvParser;
+import io.Tsv;
 import java.io.IOException;
 import java.util.*;
 
@@ -25,7 +25,7 @@ public class ChangelistSourceFiles {
    * </pre>
    */
   public static ChangelistSourceFiles readChangelistToFileMapping(String changelists_tsv) throws IOException {
-    TsvParser cls = new TsvParser(changelists_tsv);
+    Tsv cls = new Tsv(changelists_tsv);
     ChangelistSourceFiles changelist_to_file_mapping = new ChangelistSourceFiles();
     for (String[] changelist: cls.rows()) {
       for (String file : changelist[2].split("\n")) {
