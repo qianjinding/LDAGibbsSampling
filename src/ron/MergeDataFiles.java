@@ -15,7 +15,15 @@ public class MergeDataFiles {
 
   public static void main(String[]args)throws Exception {
     String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
-    String[] subdirs = {"20130927/", "20131101/", "20131104/", "20131105/" };
+    File[] datedirs = new File(basedir).listFiles(new FilenameFilter() {
+      @Override public boolean accept(File dir, String name) {
+        return name.startsWith("2013");
+      }
+    });
+    String[] subdirs = new String[datedirs.length];
+    for (int i=0; i<subdirs.length; i++) {
+      subdirs[i] = datedirs[i].getName() + "/";
+    }
     String[] files = { "changelists.txt", "runs.txt", "test_failures.txt", "test_details.txt", "test_results.json" };
     Map<String, ConflictResolver> resolvers = new HashMap<>();
     resolvers.put("runs.txt", new RunsConflictResolver());
