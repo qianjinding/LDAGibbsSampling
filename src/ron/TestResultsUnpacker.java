@@ -1,21 +1,36 @@
 package ron;
 
+import io.LineReader;
 import io.ProgressTracker;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.util.*;
 import ron.TestResultsUnpacker.TestSuiteRun.Status;
+import com.google.common.base.Function;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import data.PackUtils;
+import data.Runs;
 
+/**
+ * given "test_results.json," this utility produces two output files, "fixedby.txt" and "brokenby.txt"
+ * where each line represents a test being caused to fail or caused to succeed by one or more
+ * changelist_id's.
+ *
+ */
 public class TestResultsUnpacker {
   //  ID      CREATE_DATE     TEST_DETAIL_ID  RUN_ID  TEST_STATUS
   //  9126993559      31-OCT-13       3233896 35011705        1
   public static void main(String[]args)throws Exception {
-    // run_id -> test_status -> test_detail_id
     String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
-    TestResults results = new TestResults(PackUtils.readPackedJson(basedir + "test_results.json"));
-    System.out.println(results.size());
 
-    Set<Integer> testids = new HashSet<>();
+    final Runs runs = LineReader.handle(true, new Runs(), basedir + "runs.txt");
+
+    // run_id -> test_status -> test_detail_id
+    TestResults results = new TestResults(PackUtils.readPackedJson(basedir + "test_results.json"));
+
+    Set<Integer> testids = new TreeSet<>();
 
     try (ProgressTracker pt = new ProgressTracker(null, "index", results.size(), "runs", "tests")) {
       for (int i=0; i<results.size(); i++) {
@@ -27,40 +42,66 @@ public class TestResultsUnpacker {
       }
     }
 
-    for (int testid : testids) {
-      Status prevstatus = null;
-      int i;
-      for (i=0; i<results.size(); i++) {
-        TestSuiteRun tsr = results.get(i);
-        Status status = tsr.getStatus(testid);
-        if (status != null) {
-          prevstatus = status;
-          break;
+    try (ProgressTracker pt = new ProgressTracker(null, "save", testids.size(), "tests");
+        BufferedWriter brokenby = new BufferedWriter(new FileWriter(basedir + "brokenby.txt"));
+        BufferedWriter fixedby = new BufferedWriter(new FileWriter(basedir + "fixedby.txt"))) {
+      String header = "TEST_ID\tCHANGELISTS\n";
+      brokenby.write(header);
+      fixedby.write(header);
+      for (int testid : testids) {
+        pt.advise(1);
+        Status prevstatus = null;
+        int i;
+        for (i=0; i<results.size(); i++) {
+          TestSuiteRun tsr = results.get(i);
+          Status status = tsr.getStatus(testid);
+          if (status != null) {
+            prevstatus = status;
+            break;
+          }
         }
-      }
-      if (prevstatus == null) {
-        // this test was never run
-        continue;
-      }
-      List<Integer> unklist = new ArrayList<>();
-      while (++i<results.size()) {
-        TestSuiteRun tsr = results.get(i);
-        Status status = tsr.getStatus(testid);
-        if (status == null) {
-          // test wasn't executed in this particular run so we don't know if the changelist
-          // causing this run might have caused the test to switch polarity
+        if (prevstatus == null) {
+          // this test was never run
+          continue;
+        }
+        List<Integer> unklist = new ArrayList<>();
+        while (++i<results.size()) {
+          TestSuiteRun tsr = results.get(i);
+          Status status = tsr.getStatus(testid);
+          if (status == null) {
+            // test wasn't executed in this particular run so we don't know if the changelist
+            // causing this run might have caused the test to switch polarity
+            unklist.add(tsr.getRunid());
+            continue;
+          }
+          if (prevstatus == status) {
+            // the accumulated list of test suite runs probably didn't flip the test's polarity
+            unklist.clear();
+            continue;
+          }
           unklist.add(tsr.getRunid());
-          continue;
-        }
-        if (prevstatus == status) {
-          // the accumulated list of test suite runs probably didn't flip the test's polarity
+          BufferedWriter out;
+          switch (status) {
+          case SUCCESS:
+            out = fixedby;
+            break;
+          case FAILURE:
+            out = brokenby;
+            break;
+          default:
+            throw new AssertionError("" + status);
+          }
+          out.write(Integer.toString(testid));
+          out.write('\t');
+          out.write(Joiner.on("|").join(Iterables.transform(unklist, new Function<Integer, Integer>() {
+            @Override public Integer apply(Integer run_id) {
+              return runs.getRunById(run_id).getChangelistId();
+            }
+          })));
+          out.newLine();
           unklist.clear();
-          continue;
+          prevstatus = status;
         }
-        unklist.add(tsr.getRunid());
-        System.out.println(testid+" " + status+" " + unklist);
-        unklist.clear();
-        prevstatus = status;
       }
     }
   }
