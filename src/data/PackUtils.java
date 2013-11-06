@@ -54,7 +54,7 @@ public class PackUtils {
     }
   }
 
-  static Map<Integer, Map<Byte, Set<Integer>>> readRawTestRuns(String infile) throws IOException,
+  public static Map<Integer, Map<Byte, Set<Integer>>> readRawTestRuns(String infile) throws IOException,
   FileNotFoundException {
     Map<Integer, Map<Byte, Set<Integer>>> m = new TreeMap<>();
     try (ProgressTracker pt = new ProgressTracker(null, "read", -1, "rows", "bytes");
@@ -191,7 +191,7 @@ public class PackUtils {
 
   public static Map<Integer, Map<Byte, Set<Integer>>> readPackedJson(String infile) throws IOException,
   JsonParseException, JsonMappingException, FileNotFoundException {
-    try (ProgressTracker pt = new ProgressTracker(null, "readpacked", -1, "runs");
+    try (ProgressTracker pt = new ProgressTracker(null, "readpacked", -1, "runs", "tests");
         @SuppressWarnings("resource")
         BufferedInputStream in = new BufferedInputStream(infile.endsWith(".gz") ? new GZIPInputStream(new FileInputStream(infile)) : new FileInputStream(infile))) {
       //      {
@@ -220,9 +220,10 @@ public class PackUtils {
           if (unpacked.size() != numtests) throw new RuntimeException("Wrong number of tests: " + numtests+" vs " + unpacked.size());
           String new_hash = hash(unpacked);
           if (!new_hash.equals(expected_hash)) throw new RuntimeException("Wrong hash: " + new_hash+" vs " + expected_hash);
+          pt.advise(0, unpacked.size());
           m3.put(test_status, unpacked);
         }
-        pt.advise(1);
+        pt.advise(1, 0);
       }
       return map;
     }
