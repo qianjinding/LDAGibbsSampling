@@ -81,8 +81,10 @@ public class PackUtils {
     return m;
   }
 
-  static void writeJson(String outfile, Map<Integer, Map<Byte, Set<Integer>>> m, PackUtils.ToString toString) throws IOException,
-  FileNotFoundException {
+  public static void writePackedJson(String outfile, Map<Integer, Map<Byte, Set<Integer>>> m) throws IOException {
+    writeJson(outfile, m, new Packer());
+  }
+  static void writeJson(String outfile, Map<Integer, Map<Byte, Set<Integer>>> m, PackUtils.ToString toString) throws IOException {
     try (ProgressTracker pt = new ProgressTracker(null, "write", m.size(), "runs");
         BufferedWriter w = new BufferedWriter(new OutputStreamWriter(outfile.endsWith(".gz") ? new GZIPOutputStream(new FileOutputStream(outfile)) : new FileOutputStream(outfile)))) {
       w.write("[\n");
