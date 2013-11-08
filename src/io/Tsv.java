@@ -162,7 +162,7 @@ public final class Tsv {
         writeVal(out, rows.get(i)[0]);
         for (int j=1; j<cols.length; j++) {
           out.write('\t');
-          out.write(rows.get(i)[j]);
+          writeVal(out, rows.get(i)[j]);
         }
         out.write('\n');
       }
@@ -170,10 +170,8 @@ public final class Tsv {
   }
 
 
-  private void writeVal(BufferedWriter out, String string) throws IOException {
+  private static void writeVal(BufferedWriter out, String string) throws IOException {
     if (string == null) return;
-    if (string.indexOf('\t') != -1) throw new RuntimeException("too fancy");
-    if (string.indexOf(' ') != -1) throw new RuntimeException("too fancy");
     if (string.indexOf('\t') != -1) throw new RuntimeException("too fancy");
     if (string.indexOf('"') != -1) throw new RuntimeException("too fancy");
     if (string.indexOf('\n') != -1) {
