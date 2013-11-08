@@ -13,7 +13,7 @@ public class Runs extends LineReader {
   // ID CREATE_DATE STATUS CHANGELIST TYPE BUILD_FAILED
   // 1234 18-SEP-13 SKIP|FINISHED 54321 PARTIAL|FULL n|y
   @Override public void add(String line) {
-    String[]ar = line.split("\t");
+    String[]ar = LineReader.split(line, '\t');
     Run run = new Run(Integer.parseInt(ar[0]), ar[1], ar[2], ar[3], ar[4], ar[5]);
     map.put(run.runid, run);
     list.add(run);
@@ -35,6 +35,9 @@ public class Runs extends LineReader {
       this.type = type;
       this.build_failed = build_failed;
     }
+    public int getChangelistId() {
+      return Integer.parseInt(changelistid);
+    }
 
   }
 
@@ -48,5 +51,9 @@ public class Runs extends LineReader {
 
   public Iterable<Run> runs() {
     return map.values();
+  }
+
+  public Run getRunById(Integer run_id) {
+    return map.get(run_id);
   }
 }

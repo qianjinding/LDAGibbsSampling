@@ -8,3 +8,6 @@
 docs.txt
 changelist_to_failures_doc.txt
 lib/
+target/
+.project
+.classpath

@@ -1,6 +1,6 @@
 package data;
 
-import io.TsvParser;
+import io.Tsv;
 import java.io.IOException;
 import java.util.*;
 
@@ -14,7 +14,7 @@ public class TestFailuresByRun {
     // ID CREATE_DATE TEST_DETAIL_ID RUN_ID
     // 80001 14-SEP-13 12345 1234
     // 80002 14-SEP-13 12341 1234
-    TsvParser tfs = new TsvParser(test_failures_tsv);
+    Tsv tfs = new Tsv(test_failures_tsv);
 
     // build map from run id to test failures
     TestFailuresByRun test_failures_by_run_id = new TestFailuresByRun();

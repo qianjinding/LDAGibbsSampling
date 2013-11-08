@@ -1,6 +1,7 @@
 package ron;
 
 import io.LineReader;
+import io.ProgressTracker;
 import java.util.*;
 import java.util.Map.Entry;
 import data.*;
@@ -63,7 +64,7 @@ public class MalletPredictionMain {
           for (Topic t : relevant_topics) {
             for (int j=0; j<doc.topicids.length; j++) {
               if (doc.topicids[j] == t.topicid) {
-                score += t.weight * doc.topicweights[j];
+                score += doc.topicweights[j];
               }
             }
           }
@@ -74,22 +75,25 @@ public class MalletPredictionMain {
 
       int total = 0;
       int numcorrect = 0;
-      Random r = new Random();
-      while (total < 100000) {
-        int a = r.nextInt(predictions.size());
-        int b = r.nextInt(predictions.size());
-        Prediction p1 = predictions.get(a);
-        Prediction p2 = predictions.get(b);
-        if ((p1.actual_failure_count == 0) == (p2.actual_failure_count == 0)) {
-          continue;
-        }
-        total++;
-        boolean correct = p1.score > p2.score == p1.actual_failure_count > p2.actual_failure_count;
-        System.out.println(correct+" " + p1.score+" " + p1.actual_failure_count+" " + p2.score +" " + p2.actual_failure_count);
-        if (correct) numcorrect++;
-      }
-      System.out.println(numcorrect +" correct, out of " + total);
-    }
+      try (ProgressTracker pt = new ProgressTracker(null, test_id, (predictions.size() * (predictions.size() - 1))/2, "eligible", "comparison")) {
+        for (int a=0; a<predictions.size(); a++) {
+          for (int b=a+1; b<predictions.size(); b++) {
 
+            Prediction p1 = predictions.get(a);
+            Prediction p2 = predictions.get(b);
+            if ((p1.actual_failure_count == 0) == (p2.actual_failure_count == 0)) {
+              pt.advise(1, 0);
+              continue;
+            }
+            pt.advise(1, 1);
+            total++;
+            boolean correct = p1.score > p2.score == p1.actual_failure_count > p2.actual_failure_count;
+            // System.out.println(correct+" " + p1.score+" " + p1.actual_failure_count+" " + p2.score +" " + p2.actual_failure_count);
+            if (correct) numcorrect++;
+          }
+        }
+        System.out.printf("accuracy: %.2f%%, correct: %d, total: %d\n", numcorrect * 100f / total, numcorrect, total);
+      }
+    }
   }
 }
