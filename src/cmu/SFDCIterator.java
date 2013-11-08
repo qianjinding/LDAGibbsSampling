@@ -1,10 +1,12 @@
 package cmu;
 
+import io.ProgressTracker;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.net.URI;
 import java.util.Iterator;
+import java.util.logging.Logger;
 
 import cc.mallet.types.Instance;
 
@@ -19,11 +21,13 @@ public class SFDCIterator implements Iterator<Instance> {
 	String separator;
 	int uriGroup, targetGroup, dataGroup;
 	int splitParts = 1;
+	int linesRead;
+//	ProgressTracker p;
 
 	public SFDCIterator (Reader reader, String separator,  int dataGroup, int targetGroup, int uriGroup) {
 		this.reader = new BufferedReader (reader);
 		this.index = 0;
-		
+		this.linesRead = 0;
 		if (dataGroup <= 0)
             throw new IllegalStateException ("You must extract a data field.");
 		
@@ -36,6 +40,8 @@ public class SFDCIterator implements Iterator<Instance> {
 		this.targetGroup = targetGroup;
 		this.dataGroup = dataGroup;
 		this.uriGroup = uriGroup;
+		
+	//	this.p = new ProgressTracker(Logger.getLogger(getClass().getName()), "model data", -1, "lines");
 	}
 
 	public Instance next () {
@@ -70,7 +76,8 @@ public class SFDCIterator implements Iterator<Instance> {
 		}
 		try { uri = new URI (uriStr); }
 		catch (Exception e) { throw new RuntimeException (e); }
-
+		linesRead++;  
+		
 		return new Instance(data, target, uri, null);
 
 	}

@@ -4,7 +4,9 @@ package cmu;
 import cc.mallet.pipe.Pipe;
 import cc.mallet.topics.*;
 import cc.mallet.util.*;
+import cc.mallet.types.Alphabet;
 import cc.mallet.types.FeatureSequence;
+import cc.mallet.types.FeatureVector;
 import cc.mallet.types.Instance;
 import cc.mallet.types.InstanceList;
 import cc.mallet.types.InstanceList.CrossValidationIterator;
@@ -78,174 +80,111 @@ public class TrainAndPredict {
   
  
   public String randomChangelistID(){
-        // pick a random changelist (!) to make predictions on... more than one file
-    int size = 0;
+        // pick a random changelist to make predictions on... more than one file, more than one failure
     String cListID = null;
-    while (size <= 1) {
-      Set<String> changelist_ids = changelist_id_to_files.keySet();
+    boolean stop = false;
+    while (!stop) {
+      Set<String> changelist_ids = changelist_to_failures.keySet();
        cListID = (String) changelist_ids.toArray()[new Randoms().nextInt(changelist_ids.size())];
-      size = changelist_id_to_files.get(cListID).size();
+      stop = (changelist_id_to_files.get(cListID).size() > 1)
+          &&(changelist_to_failures.get(cListID).size() > 1);
     }
      return cListID;
   }
   
-  // predict on all files
-  public List<Prediction> predictFailures(InstanceList testingDocs, String test_id) throws IOException
+  static double cosineSimilarity(double [] v1, double [] v2)
   {
-
-    return predictFailures(testingDocs, test_id, (List<String>)null);
+    // assumes lengths are the same
+    // divide the dot product by the norms (eqv. to lengths) of the vectors
+    double similarity  = 0.0;
+    double v1SqSum = 0.0;
+    double v2SqSum = 0.0;
+    // first dot product - these values might get tiny enough for logs
+    for (int i=0; i<v1.length; i++) {
+      similarity += v1[i]*v2[i];
+      v1SqSum += v1[i]*v1[i];
+      v2SqSum += v2[i]*v2[i];
+    }
+    similarity = similarity/(Math.sqrt(v1SqSum)*Math.sqrt(v2SqSum));
+    
+    return similarity;
   }
   
-  // use a changelist ID
-  public List<Prediction> predictFailures(InstanceList testingDocs, String test_id, String changelistID)
+  // super naive - do not use
+  static double diffSimilarity(double [] v1, double [] v2)
   {
-    Set<String> cList = changelist_id_to_files.get(changelistID);
-    return predictFailures(testingDocs, test_id, cList);
+    // assumes lengths are the same
+    // divide the dot product by the norms (eqv. to lengths) of the vectors
+    double similarity  = 0.0;
+    double diffSqSum = 0.0;
+    // first dot product - these values might get tiny enough for logs
+    for (int i=0; i<v1.length; i++) {
+      double diff =v1[i] - v2[i];
+      diffSqSum += diff*diff;
+    }
+    similarity = diffSqSum/v1.length;
+    
+    return 1.0 - similarity;
   }
   
-  public List<Prediction> predictFailures(InstanceList testingDocs, String test_id, Collection<String> changelist)
+  public List<Prediction> scoresForChangelistOnTests(String changelist_id, Set<String>test_ids)
   {
-    // modified from ron.MalletPredictionMain
-    List<Prediction> predictions = new ArrayList<Prediction>();
-
+    // treating words as files, then comparing the topic distribution of a changelist to the topic distribution of the doc for a given test_id
+    // the map is a sequence of failed test ids and the changelist id for the run where they actually failed
+    List<Prediction> p = new ArrayList<Prediction>();
     
-    int docId = 0;
-    
-    // weirdly enough, using only the top x words gives better results than using all probabilities
-    // could be due to overfitting
-    
-    Object[][] topWordsArray = currentModel.getTopWords(100);
-    
-    // convert to an ArrayList so I don't have to search out values myself
-    List<List<Object>> topWords = new ArrayList<List<Object>>();
-    for (Object [] words : topWordsArray) {
-      topWords.add(new ArrayList<Object>(Arrays.asList(words)));
+    // make an instance containing the files from this changelist
+    Set<String> files = changelist_id_to_files.get(changelist_id);
+    Alphabet al = currentModel.getAlphabet();
+    FeatureSequence fs = new FeatureSequence(al);
+    for (String f:files) {
+      int id = al.lookupIndex(f,false);
+      fs.add(id);
     }
     
-    for (Instance d : testingDocs) {
-      docId++;
-
-      String source_file = (String)d.getTarget();
-      
-      // restrict to source files in changelist, if it exists
-      if (changelist != null && !changelist.contains(source_file))
-        continue;
-
-      // corresponds to 'ron.output'
-      // uses default values from cc.mallet.topics.tui.InferTopics for arguments
-      double docTopicWeights[] = currentInferencer.getSampledDistribution(d, 100, 10, 10);
-      
-        double score = 0;
-
-        for (int i=0; i<currentModel.numTopics; i++) {
-          List<Object> a = topWords.get(i);
-
-          // weight(topic in doc)*weight(topic)
-          if (a.contains(test_id)) {
-            score += docTopicWeights[i] * currentModel.alpha[i];
-          }
-        }
+    Set<String> actualFailures = changelist_to_failures.get(changelist_id);
     
-        //find actual failures for this source file
-        int count = 0;
-        FeatureSequence f = (FeatureSequence)d.getData();
-        for (int featureID : f.getFeatures()) {
-          String test = (String)f.getAlphabet().lookupObject(featureID);
-            if (test.equals(test_id))
-              count++;
-        } 
-        
-        predictions.add(new Prediction(docId, score, count, source_file));
+    Instance changelistInstance = new Instance(fs, changelist_id, null, null);    
+    List<TopicAssignment> testTopics = currentModel.data;
+    
+    for (TopicAssignment t:testTopics) {
+      String test_id = (String)t.instance.getTarget();
+      if (test_ids.contains(test_id)) {
+          double testTopicDist[] = currentModel.getTopicProbabilities(t.topicSequence);
+          double changelistTopicDist[] = currentInferencer.getSampledDistribution(changelistInstance, 100, 10, 10);
+//          System.out.println(Arrays.toString(testTopicDist));
+//          System.out.println(Arrays.toString(changelistTopicDist));
+          int failure_count = actualFailures.contains(test_id) ? 1 : 0;
+           p.add(new Prediction(Integer.valueOf(changelist_id), cosineSimilarity(testTopicDist, changelistTopicDist), failure_count, test_id));
+      }
     }
-   return predictions;
+      //  System.out.println();
+   return p;
   }
-  
-
-
-public Map<String, String> predictBlame(Collection<String> test_ids, Collection<String> changelist)
-{
-  // test id: file
-  Map<String, String> blame = new HashMap<>();
  
-  
-  // build the string of all test ids together
-  StringBuilder sb = new StringBuilder();
-  Iterator<String> i = test_ids.iterator();
-  while(i.hasNext()) {
-    sb.append(i.next());
-    if (i.hasNext())
-      sb.append("\t");
-  }
-  
-  String testIdString = new String(sb);
-  
-  // we're going to make new instances: each file in the change list to all test ids
-  InstanceList predictInstances = new InstanceList(instancePipe);
-  for (String file : changelist) {
-    predictInstances.addThruPipe(new Instance(testIdString,file, null, null));
-  }
-  
-  for (String test_id : test_ids) {
-    double highScore = -1;
-    List<Prediction> predictions = predictFailures(predictInstances, test_id, changelist);
-    for (Prediction p : predictions) {
-        if (p.score > highScore) {
-          highScore = p.score;
-          blame.put(test_id, p.description);
-        }
-    }
-  }
-  
-  return blame;
-}
-  
-  // returns {precision, recall, accuracy, true negative rate}
-  // where precision is the ratio of  true failures to predicted failures
-  // recall is the ratio of true failures to actual failures 
-  // accuracy is the ratio of correct predictions (including predicted not to fail) to all predictions
-  // true negative rate is the ratio of true negatives (not predicted to fail) to predicted negatives
-  public  double[] evaluatePredictionAccuracy(List<Prediction> predictions) {
-    int total = 0;
-    Random r = new Random();
-    int falsePositiveCount = 0; // score was lower but actual_failures was higher
-    int falseNegativeCount = 0; // score was higher but actual_failures was lower
-    int truePositiveCount = 0; // score was higher and actual_failures is higher or equal
-    int trueNegativeCount = 0; // score was lower and actual_failures is lower or equal
 
-    int comparisons = predictions.size()*3/2;
-
-    while (total < comparisons) {
-      int a = r.nextInt(predictions.size());
-      int b = r.nextInt(predictions.size());
-      Prediction pred1 = predictions.get(a);
-      Prediction pred2 = predictions.get(b);
-
-      total++;
-
-      if (pred1.score >= pred2.score) {
-        if (pred1.actual_failure_count >= pred2.actual_failure_count)
-          truePositiveCount++;
-        else
-          falsePositiveCount++;
-      }
-
-      if (pred1.score < pred2.score) {
-        if (pred1.actual_failure_count <= pred2.actual_failure_count)
-          trueNegativeCount++;
-        else
-          falseNegativeCount++;
-      }
-
-
-    }
-
-    double precision = (double)truePositiveCount/(truePositiveCount + falsePositiveCount);
-    double recall = (double)truePositiveCount/(truePositiveCount + falseNegativeCount);
-    double accuracy = (double)(truePositiveCount + trueNegativeCount)/(truePositiveCount + trueNegativeCount + falseNegativeCount + falsePositiveCount);
-    double tnr = (double)(trueNegativeCount)/(trueNegativeCount + falsePositiveCount);
+  public double evaluatePredictions(String changelist_id1, String changelist_id2, Set<String> test_ids) {
     
-        
-    return new double[]{precision, recall, accuracy, tnr};
+    double correctPredictions = 0.0;
+    int total = 0;
+    
+    List<Prediction> scores1 = scoresForChangelistOnTests(changelist_id1, test_ids);
+    List<Prediction> scores2 = scoresForChangelistOnTests(changelist_id2, test_ids);
+    
+    for (Prediction p1:scores1) { 
+      for (Prediction p2:scores2) {
+          if (p1.description.equals(p2.description)) {
+            if (p1.actual_failure_count != p2.actual_failure_count) {
+              total++;
+                if ((p1.score > p2.score) == (p1.actual_failure_count > p2.actual_failure_count))
+                  correctPredictions+=1;
+            }
+            break; // should only be one of each test id in each of these lists
+          }
+      }
+    }
+    
+    return correctPredictions/total;
   }
   
   public void trainNewModel(InstanceList training ) throws IOException {
@@ -265,7 +204,6 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
   
   public void updateModel(InstanceList newDocs) throws IOException {
       currentModel.addInstances(newDocs);
- //     files_to_failures.addAll(newDocs);
       currentModel.estimate();
       currentInferencer = currentModel.getInferencer();
   }
@@ -299,61 +237,53 @@ public Map<String, String> predictBlame(Collection<String> test_ids, Collection<
     }
   }
 
-  // do K-fold validation - divide dataset in K parts: train on 1 part and test on the remaining K-1
-  // ... then do it K-1 more times
-  public void testModel(int nFolds, String test_id, InstanceList instancesToSplit) throws IOException {
-    double stats[][] = new double[nFolds][] ;
+  
+  public void testCurrentModel() throws IOException {
 
-    CrossValidationIterator folds = instancesToSplit.crossValidationIterator(nFolds);
-    for (int i = 0; i<nFolds; i++) {
-      InstanceList partition[] = folds.nextSplit();
-      trainNewModel(partition[0]);
-      double s[] = evaluatePredictionAccuracy(predictFailures(partition[1], test_id));
-      stats[i] = s;
-    }
-    System.out.println("Results: ");
-    System.out.println("Precision\t\tRecall\t\tAccuracy\t\tTNR");
-    for (double s[] : stats) {
-      for (double d : s) 
-        System.out.printf("%.4f\t\t", d);
-      System.out.println();
-    }
+    String randomCL1 = randomChangelistID();
+    String randomCL2 = randomChangelistID();
+    while (randomCL1.equals(randomCL2))
+      randomCL2 = randomChangelistID();
+    
+    // take random failures from both runs
+    Set<String> failures = changelist_to_failures.get(randomCL1);
+    failures.addAll(changelist_to_failures.get(randomCL2));
+    
+    double acc = evaluatePredictions(randomCL1, randomCL2, failures);
+    
+    System.out.printf("Changelists %s, %s: %.1f %% correct.\n", randomCL1, randomCL2, acc*100);
   }
-
+  
   public static void main (String[] args) throws Exception {
  
-    TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt", "/Users/abannis/CourseWork/18697/project/data/changelist_to_failures_doc.txt");
+    TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt", "/Users/abannis/CourseWork/18697/project/data/amb_changelist_to_failures.txt");
     InstanceImporter importer = new InstanceImporter();
-    InstanceList topic_instances = importer.readFile("/Users/abannis/CourseWork/18697/project/data/docs.txt");
+    InstanceList topic_instances = importer.readFile("/Users/abannis/CourseWork/18697/project/data/inverse_docs.txt");
    
     // load data from file if available, else recreate model, inferencer and pipe
-//    File modelFile = null;
-//    if (args.length > 0) {
-//      modelFile = new File(args[0]);
-//      try {
-//        t.load(modelFile);
-//      } catch (IOException e) {
-//      }
-//    }
-//    
-//    if (t.currentModel == null) {
-//     t.trainNewModel(topic_instances);
-//    }
-//    
-//    if (modelFile != null) {
-//      t.save(modelFile);
-//    }
+    File modelFile = null;
+    if (args.length > 0) {
+      modelFile = new File(args[0]);
+      try {
+        t.load(modelFile);
+      } catch (IOException e) {
+      }
+    }
     
-//    String changelistID = t.randomChangelistID();
-//    Set<String> files = t.changelist_id_to_files.get(changelistID);
-//    Set<String> failures = t.changelist_to_failures.get(changelistID);
-//    
-//    Map<String, String> causes=  t.predictBlame(failures, files);
-//    System.out.printf("Assigning blame for changelist %s: %d files changed and %d failures\n", changelistID, files.size(), failures.size());
-//    for (Entry<String, String> e : causes.entrySet()) {
-//      System.out.println(e.getKey()+"\t"+e.getValue());
-//    }
+    if (t.currentModel == null) {
+     t.trainNewModel(topic_instances);
+    }
     
-      t.testModel(5, "14842196", topic_instances);
+    if (modelFile != null) {
+      t.save(modelFile);
+    }
+    
+    t.currentModel.printDocumentTopics(new File("/Users/abannis/temp/doc_topics.txt"));
+    t.currentModel.printTypeTopicCounts(new File("/Users/abannis/temp/word_counts.txt"));
+    
+    System.out.println("Model likelihood: " + t.currentModel.modelLogLikelihood());
+    
+    
+      t.testCurrentModel();
   }
 }
