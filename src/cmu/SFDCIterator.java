@@ -1,6 +1,6 @@
-package cmu;
+package src.cmu;
 
-import io.ProgressTracker;
+import src.io.ProgressTracker;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;

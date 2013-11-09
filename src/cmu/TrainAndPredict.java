@@ -1,4 +1,4 @@
-package cmu;
+package src.cmu;
 
 
 import cc.mallet.pipe.Pipe;
@@ -16,9 +16,9 @@ import java.io.*;
 import java.util.*;
 import java.util.Map.Entry;
 
-import io.Tsv;
-import cmu.InstanceImporter.TrainerType;
-import data.Prediction;
+import src.io.Tsv;
+import src.cmu.InstanceImporter.TrainerType;
+import src.data.Prediction;
 
 
 public class TrainAndPredict {
@@ -83,11 +83,13 @@ public class TrainAndPredict {
         // pick a random changelist to make predictions on... more than one file, more than one failure
     String cListID = null;
     boolean stop = false;
+    Set<String> changelist_ids = changelist_to_failures.keySet();
+
     while (!stop) {
-      Set<String> changelist_ids = changelist_to_failures.keySet();
        cListID = (String) changelist_ids.toArray()[new Randoms().nextInt(changelist_ids.size())];
-      stop = (changelist_id_to_files.get(cListID).size() > 1)
-          &&(changelist_to_failures.get(cListID).size() > 1);
+       int length = changelist_id_to_files.get(cListID).size();
+       int failures = changelist_to_failures.get(cListID).size();
+      stop = (length > 1) &&(failures > 1);
     }
      return cListID;
   }
@@ -114,10 +116,9 @@ public class TrainAndPredict {
   static double diffSimilarity(double [] v1, double [] v2)
   {
     // assumes lengths are the same
-    // divide the dot product by the norms (eqv. to lengths) of the vectors
     double similarity  = 0.0;
     double diffSqSum = 0.0;
-    // first dot product - these values might get tiny enough for logs
+
     for (int i=0; i<v1.length; i++) {
       double diff =v1[i] - v2[i];
       diffSqSum += diff*diff;
@@ -134,13 +135,22 @@ public class TrainAndPredict {
     List<Prediction> p = new ArrayList<Prediction>();
     
     // make an instance containing the files from this changelist
+    int unknown = 0;
     Set<String> files = changelist_id_to_files.get(changelist_id);
     Alphabet al = currentModel.getAlphabet();
     FeatureSequence fs = new FeatureSequence(al);
     for (String f:files) {
-      int id = al.lookupIndex(f,false);
-      fs.add(id);
+      int id = al.lookupIndex(f,false); 
+      if (id > 0) {
+        fs.add(id);
+      } else {
+       // System.out.printf("Unknown file %s in changelist %s\n", f, changelist_id);
+        unknown++;
+        // uncomment below to use unknown files
+         fs.add(f);
+      }
     }
+    System.out.printf("%d%% of changelist %s is unknown\n", unknown*100/files.size(), changelist_id);
     
     Set<String> actualFailures = changelist_to_failures.get(changelist_id);
     
@@ -165,7 +175,7 @@ public class TrainAndPredict {
 
   public double evaluatePredictions(String changelist_id1, String changelist_id2, Set<String> test_ids) {
     
-    double correctPredictions = 0.0;
+      double correctPredictions = 0.0;
     int total = 0;
     
     List<Prediction> scores1 = scoresForChangelistOnTests(changelist_id1, test_ids);
@@ -245,7 +255,7 @@ public class TrainAndPredict {
     while (randomCL1.equals(randomCL2))
       randomCL2 = randomChangelistID();
     
-    // take random failures from both runs
+    // take failures from both runs
     Set<String> failures = changelist_to_failures.get(randomCL1);
     failures.addAll(changelist_to_failures.get(randomCL2));
     
@@ -256,10 +266,8 @@ public class TrainAndPredict {
   
   public static void main (String[] args) throws Exception {
  
-    TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt", "/Users/abannis/CourseWork/18697/project/data/amb_changelist_to_failures.txt");
-    InstanceImporter importer = new InstanceImporter();
-    InstanceList topic_instances = importer.readFile("/Users/abannis/CourseWork/18697/project/data/inverse_docs.txt");
-   
+    TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt", "/Users/abannis/CourseWork/18697/project/data/changelist_to_failures_doc.txt");
+
     // load data from file if available, else recreate model, inferencer and pipe
     File modelFile = null;
     if (args.length > 0) {
@@ -271,6 +279,8 @@ public class TrainAndPredict {
     }
     
     if (t.currentModel == null) {
+      InstanceImporter importer = new InstanceImporter();
+      InstanceList topic_instances = importer.readFile("/Users/abannis/CourseWork/18697/project/data/inverse_docs.txt");
      t.trainNewModel(topic_instances);
     }
     
@@ -279,8 +289,7 @@ public class TrainAndPredict {
     }
     
     t.currentModel.printDocumentTopics(new File("/Users/abannis/temp/doc_topics.txt"));
-    t.currentModel.printTypeTopicCounts(new File("/Users/abannis/temp/word_counts.txt"));
-    
+    t.currentModel.printTopWords(new File("/Users/abannis/temp/topic_words.txt"), 10, false);    
     System.out.println("Model likelihood: " + t.currentModel.modelLogLikelihood());
     
     
