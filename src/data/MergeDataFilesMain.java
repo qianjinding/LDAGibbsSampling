@@ -1,4 +1,4 @@
-package ron;
+package data;
 
 import io.Tsv;
 import io.Tsv.ConflictResolver;
@@ -11,7 +11,7 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 import data.PackUtils;
 
-public class MergeDataFiles {
+public class MergeDataFilesMain {
 
   public static void main(String[]args)throws Exception {
     String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
@@ -182,6 +182,17 @@ public class MergeDataFiles {
         // !wait1 && wait2
         return row1;
       }
+
+      boolean reserved1 = "RESERVED".equals(row1[idxStatus]);
+      boolean reserved2 = "RESERVED".equals(row2[idxStatus]);
+      if (reserved1 != reserved2) {
+        if (reserved1) { // !reserved2
+          return row2;
+        }
+        // !reserved1 && reserved2
+        return row1;
+      }
+
 
       // If one run is RUNNING and the other is not, let's use the other row
       boolean running1 = "RUNNING".equals(row1[idxStatus]);

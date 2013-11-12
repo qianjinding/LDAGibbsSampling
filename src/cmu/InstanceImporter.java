@@ -1,4 +1,4 @@
-package src.cmu;
+package cmu;
 
 import java.io.*;
 import java.net.URL;

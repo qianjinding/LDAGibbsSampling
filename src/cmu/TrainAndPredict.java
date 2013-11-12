@@ -1,20 +1,13 @@
-package src.cmu;
+package cmu;
 
-import cc.mallet.pipe.Pipe;
-import cc.mallet.topics.*;
-import cc.mallet.util.*;
-import cc.mallet.types.Alphabet;
-import cc.mallet.types.FeatureSequence;
-import cc.mallet.types.FeatureVector;
-import cc.mallet.types.Instance;
-import cc.mallet.types.InstanceList;
-import cc.mallet.types.InstanceList.CrossValidationIterator;
+import io.Tsv;
 import java.io.*;
 import java.util.*;
-import java.util.Map.Entry;
-import src.io.Tsv;
-import src.cmu.InstanceImporter.TrainerType;
-import src.data.Prediction;
+import cc.mallet.pipe.Pipe;
+import cc.mallet.topics.*;
+import cc.mallet.types.*;
+import cc.mallet.util.Randoms;
+import data.Prediction;
 
 public class TrainAndPredict {
   ParallelTopicModel currentModel;
@@ -138,9 +131,8 @@ public class TrainAndPredict {
             10);
         // System.out.println(Arrays.toString(testTopicDist));
         // System.out.println(Arrays.toString(changelistTopicDist));
-        int failure_count = actualFailures.contains(test_id) ? 1 : 0;
         p.add(new Prediction(Integer.valueOf(changelist_id), cosineSimilarity(testTopicDist,
-            changelistTopicDist), failure_count, test_id));
+            changelistTopicDist), actualFailures.contains(test_id), test_id));
       }
     }
     // System.out.println();
@@ -153,10 +145,10 @@ public class TrainAndPredict {
     List<Prediction> scores2 = scoresForChangelistOnTests(changelist_id2, test_ids);
     for (Prediction p1 : scores1) {
       for (Prediction p2 : scores2) {
-        if (p1.description.equals(p2.description)) {
-          if (p1.actual_failure_count != p2.actual_failure_count) {
+        if (p1.test_id.equals(p2.test_id)) {
+          if (p1.actually_failed != p2.actually_failed) {
             total++;
-            if ((p1.score > p2.score) == (p1.actual_failure_count > p2.actual_failure_count))
+            if ((p1.score > p2.score) == (p1.actually_failed && !p2.actually_failed))
               correctPredictions += 1;
           }
           break; // should only be one of each test id in each of these lists

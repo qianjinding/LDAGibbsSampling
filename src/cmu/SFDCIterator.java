@@ -1,12 +1,8 @@
-package src.cmu;
+package cmu;
 
-import src.io.ProgressTracker;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.Reader;
+import java.io.*;
 import java.net.URI;
 import java.util.Iterator;
-import java.util.logging.Logger;
 import cc.mallet.types.Instance;
 
 public class SFDCIterator implements Iterator<Instance> {

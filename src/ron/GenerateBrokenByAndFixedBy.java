@@ -5,13 +5,12 @@ import io.ProgressTracker;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.*;
-import ron.TestResultsUnpacker.TestSuiteRun.Status;
+import ron.GenerateBrokenByAndFixedBy.TestSuiteRun.Status;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import data.PackUtils;
-import data.Runs;
+import data.*;
 
 /**
  * given "test_results.json," this utility produces two output files, "fixedby.txt" and "brokenby.txt"
@@ -19,7 +18,7 @@ import data.Runs;
  * changelist_id's.
  *
  */
-public class TestResultsUnpacker {
+public class GenerateBrokenByAndFixedBy {
   //  ID      CREATE_DATE     TEST_DETAIL_ID  RUN_ID  TEST_STATUS
   //  9126993559      31-OCT-13       3233896 35011705        1
   public static void main(String[]args)throws Exception {
@@ -51,6 +50,7 @@ public class TestResultsUnpacker {
       for (int testid : testids) {
         pt.advise(1);
         Status prevstatus = null;
+        Set<Integer> already_recorded_changelists = new HashSet<>();
         int i;
         for (i=0; i<results.size(); i++) {
           TestSuiteRun tsr = results.get(i);
@@ -91,14 +91,19 @@ public class TestResultsUnpacker {
           default:
             throw new AssertionError("" + status);
           }
-          out.write(Integer.toString(testid));
-          out.write('\t');
-          out.write(Joiner.on("|").join(Iterables.transform(unklist, new Function<Integer, Integer>() {
+          HashSet<Integer> changelists = Sets.newHashSet(Iterables.transform(unklist, new Function<Integer, Integer>() {
             @Override public Integer apply(Integer run_id) {
               return runs.getRunById(run_id).getChangelistId();
             }
-          })));
-          out.newLine();
+          }));
+          changelists.removeAll(already_recorded_changelists);
+          if (!changelists.isEmpty()) {
+            out.write(Integer.toString(testid));
+            out.write('\t');
+            out.write(Joiner.on("|").join(changelists));
+            out.newLine();
+            already_recorded_changelists.addAll(changelists);
+          }
           unklist.clear();
           prevstatus = status;
         }
@@ -130,9 +135,9 @@ public class TestResultsUnpacker {
     private final int runid;
     public TestSuiteRun(int runid, Map<Byte, Set<Integer>> map) {
       this.runid = runid;
-      successes = notnull(map.get(MergeDataFiles.SUCCESS));
-      brokens = notnull(map.get(MergeDataFiles.BROKEN));
-      failures = notnull(map.get(MergeDataFiles.FAILURE));
+      successes = notnull(map.get(MergeDataFilesMain.SUCCESS));
+      brokens = notnull(map.get(MergeDataFilesMain.BROKEN));
+      failures = notnull(map.get(MergeDataFilesMain.FAILURE));
     }
 
     private static final Set<Integer> notnull(Set<Integer> set) {

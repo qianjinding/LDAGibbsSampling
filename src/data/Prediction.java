@@ -7,12 +7,16 @@ package data;
 public class Prediction {
   public final int id;
   public final double score;
-  public final int actual_failure_count;
-  public final String description;
-  public Prediction(int id, double score, int actual_failure_count, String description) {
+  public final boolean actually_failed;
+  public final String test_id;
+  public Prediction(int id, double score, boolean actually_failed, String test_id) {
     this.id = id;
     this.score = score;
-    this.actual_failure_count = actual_failure_count;
-    this.description = description;
+    this.actually_failed = actually_failed;
+    this.test_id = test_id;
+  }
+  @Override public String toString() {
+    return "Prediction [id=" + id + ", score=" + score + ", actually_failed=" + actually_failed + ", test_id="
+        + test_id + "]";
   }
 }

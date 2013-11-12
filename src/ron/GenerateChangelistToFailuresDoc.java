@@ -6,8 +6,8 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.Collection;
 import java.util.Map;
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.TreeMultimap;
 
 public class GenerateChangelistToFailuresDoc {
   public static void main(String[]args)throws Exception {
@@ -16,12 +16,13 @@ public class GenerateChangelistToFailuresDoc {
     String changelists_tsv = basedir+"brokenby.txt";
     String outfile = basedir + "changelist_to_failures_doc.txt";
     Tsv brokenby = new Tsv(changelists_tsv);
-    Multimap<Integer, Integer> changelist_to_failures = ArrayListMultimap.create();
+    Multimap<Integer, Integer> changelist_to_failures = TreeMultimap.create();
     for (String[] row : brokenby.rows()) {
       int test_id = Integer.parseInt(row[0]);
       for (String cl : row[1].split("\\|")) {
         int cl_id = Integer.parseInt(cl);
-        changelist_to_failures.put(cl_id, test_id);
+        boolean added = changelist_to_failures.put(cl_id, test_id);
+        if (!added) throw new RuntimeException(cl_id+" " + test_id);
       }
     }
     try (BufferedWriter out = new BufferedWriter(new FileWriter(outfile));
