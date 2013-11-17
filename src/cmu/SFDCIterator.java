@@ -1,6 +1,10 @@
 package cmu;
 
-import java.io.*;
+import io.ProgressTracker;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Reader;
+
 import java.net.URI;
 import java.util.Iterator;
 import cc.mallet.types.Instance;

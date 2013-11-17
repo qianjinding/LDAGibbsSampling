@@ -157,6 +157,7 @@ public class TrainAndPredict {
     }
     return correctPredictions / total;
   }
+  
   public void trainNewModel(InstanceList training) throws IOException {
     ParallelTopicModel model = new ParallelTopicModel(100, 50, 0.01);
     model.addInstances(training);
@@ -210,6 +211,7 @@ public class TrainAndPredict {
     double acc = evaluatePredictions(randomCL1, randomCL2, failures);
     System.out.printf("Changelists %s, %s: %.1f %% correct.\n", randomCL1, randomCL2, acc * 100);
   }
+  
   public static void main(String[] args) throws Exception {
     TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt",
         "/Users/abannis/CourseWork/18697/project/data/changelist_to_failures_doc.txt");
@@ -231,8 +233,7 @@ public class TrainAndPredict {
     if (modelFile != null) {
       t.save(modelFile);
     }
-    t.currentModel.printDocumentTopics(new File("/Users/abannis/temp/doc_topics.txt"));
-    t.currentModel.printTopWords(new File("/Users/abannis/temp/topic_words.txt"), 10, false);
+   
     System.out.println("Model likelihood: " + t.currentModel.modelLogLikelihood());
     t.testCurrentModel();
   }

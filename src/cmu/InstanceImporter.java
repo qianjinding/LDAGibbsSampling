@@ -21,8 +21,6 @@ public class InstanceImporter {
     pipeList.add(new Input2CharSequence("UTF-8"));
     // Tokenize raw strings
     pipeList.add(new CharSequence2TokenSequence(tokenPattern));
-    // Normalize all tokens to all lowercase
-    pipeList.add(new TokenSequenceLowercase());
     // Rather than storing tokens as strings, convert
     // them to integers by looking them up in an alphabet.
     pipeList.add(new TokenSequence2FeatureSequence());
