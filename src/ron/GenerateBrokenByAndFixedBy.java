@@ -2,9 +2,9 @@ package ron;
 
 import io.LineReader;
 import io.ProgressTracker;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
+import java.io.*;
 import java.util.*;
+import java.util.zip.GZIPOutputStream;
 import ron.GenerateBrokenByAndFixedBy.TestSuiteRun.Status;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
@@ -13,10 +13,9 @@ import com.google.common.collect.Sets;
 import data.*;
 
 /**
- * given "test_results.json," this utility produces two output files, "fixedby.txt" and "brokenby.txt"
- * where each line represents a test being caused to fail or caused to succeed by one or more
- * changelist_id's.
- *
+ * given {@code test_results.json} and {@code runs.txt} this utility produces output files: {@code pass.txt.gz},
+ * {@code fixedby.txt}, and {@code brokenby.txt}.
+ * Each line first gives a test id, followed by changelist_id's where the test passed, was fixed, or was broken.
  */
 public class GenerateBrokenByAndFixedBy {
   //  ID      CREATE_DATE     TEST_DETAIL_ID  RUN_ID  TEST_STATUS
@@ -42,15 +41,20 @@ public class GenerateBrokenByAndFixedBy {
     }
 
     try (ProgressTracker pt = new ProgressTracker(null, "save", testids.size(), "tests");
+        BufferedWriter pass = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(basedir + "pass.txt.gz"))));
         BufferedWriter brokenby = new BufferedWriter(new FileWriter(basedir + "brokenby.txt"));
         BufferedWriter fixedby = new BufferedWriter(new FileWriter(basedir + "fixedby.txt"))) {
       String header = "TEST_ID\tCHANGELISTS\n";
       brokenby.write(header);
       fixedby.write(header);
+      pass.write(header);
       for (int testid : testids) {
         pt.advise(1);
         Status prevstatus = null;
         Set<Integer> already_recorded_changelists = new HashSet<>();
+        TreeSet<Integer> passing_changelists = new TreeSet<>();
+
+        // find earliest run of this test
         int i;
         for (i=0; i<results.size(); i++) {
           TestSuiteRun tsr = results.get(i);
@@ -60,26 +64,34 @@ public class GenerateBrokenByAndFixedBy {
             break;
           }
         }
+
         if (prevstatus == null) {
           // this test was never run
           continue;
         }
-        List<Integer> unklist = new ArrayList<>();
+
+
+        // holds a group of runs that may have caused a test to fail (or pass)
+        List<Integer> uncertain_runs = new ArrayList<>();
         while (++i<results.size()) {
           TestSuiteRun tsr = results.get(i);
           Status status = tsr.getStatus(testid);
           if (status == null) {
             // test wasn't executed in this particular run so we don't know if the changelist
             // causing this run might have caused the test to switch polarity
-            unklist.add(tsr.getRunid());
+            uncertain_runs.add(tsr.getRunid());
             continue;
           }
           if (prevstatus == status) {
             // the accumulated list of test suite runs probably didn't flip the test's polarity
-            unklist.clear();
+            uncertain_runs.clear();
+
+            if (status == Status.SUCCESS) {
+              passing_changelists.add(runs.getRunById(tsr.getRunid()).getChangelistId());
+            }
             continue;
           }
-          unklist.add(tsr.getRunid());
+          uncertain_runs.add(tsr.getRunid());
           BufferedWriter out;
           switch (status) {
           case SUCCESS:
@@ -91,7 +103,7 @@ public class GenerateBrokenByAndFixedBy {
           default:
             throw new AssertionError("" + status);
           }
-          HashSet<Integer> changelists = Sets.newHashSet(Iterables.transform(unklist, new Function<Integer, Integer>() {
+          HashSet<Integer> changelists = Sets.newHashSet(Iterables.transform(uncertain_runs, new Function<Integer, Integer>() {
             @Override public Integer apply(Integer run_id) {
               return runs.getRunById(run_id).getChangelistId();
             }
@@ -104,9 +116,13 @@ public class GenerateBrokenByAndFixedBy {
             out.newLine();
             already_recorded_changelists.addAll(changelists);
           }
-          unklist.clear();
+          uncertain_runs.clear();
           prevstatus = status;
         }
+        pass.write(Integer.toString(testid));
+        pass.write('\t');
+        pass.write(Joiner.on("|").join(passing_changelists));
+        pass.newLine();
       }
     }
   }
