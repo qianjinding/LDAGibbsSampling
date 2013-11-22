@@ -70,7 +70,13 @@ public class TrainAndPredict {
 
       for (String test_id : test_ids) {
         Prediction p1 = predict(changelist_id1, test_id);
+        if (p1 == null) {
+          continue;
+        }
         Prediction p2 = predict(changelist_id2, test_id);
+        if (p2 == null) {
+          continue;
+        }
         if (p1.actually_failed == p2.actually_failed) throw new AssertionError();
         if (p1.score == p2.score) {
           // logger.warn("scores were the same {}; skipping.", p1.score);
@@ -96,6 +102,9 @@ public class TrainAndPredict {
       return predictions;
     }
 
+    /**
+     * @return null if this test_id is unikown
+     */
     Prediction predict(String changelist_id, String test_id) {
       // treating words as files, then comparing the topic distribution of a changelist to the topic distribution of the doc for a given test_id
       // the map is a sequence of failed test ids and the changelist id for the run where they actually failed
@@ -126,15 +135,20 @@ public class TrainAndPredict {
       Instance changelistInstance = new Instance(fs, changelist_id, null, null);
       List<TopicAssignment> testTopics = currentModel.data;
 
+      boolean foundTest = false;
       for (TopicAssignment t:testTopics) {
         String target_test_id = (String)t.instance.getTarget();
         if (target_test_id.equals(test_id)) {
+          foundTest = true;
           double testTopicDist[] = currentModel.getTopicProbabilities(t.topicSequence);
           double changelistTopicDist[] = currentInferencer.getSampledDistribution(changelistInstance, 100, 10, 10);
           //          System.out.println(Arrays.toString(testTopicDist));
           //          System.out.println(Arrays.toString(changelistTopicDist));
           p.add(new Prediction(Integer.valueOf(changelist_id), Metrics.cosineSimilarity(testTopicDist, changelistTopicDist), actualFailures.contains(test_id), test_id));
         }
+      }
+      if (!foundTest) {
+        return null;
       }
       //  System.out.println();
       if (p.size() != 1) throw new RuntimeException(""+p);
