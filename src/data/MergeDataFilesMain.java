@@ -14,27 +14,30 @@ import data.PackUtils;
 public class MergeDataFilesMain {
 
   public static void main(String[]args)throws Exception {
-    String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
-    File[] datedirs = new File(basedir).listFiles(new FilenameFilter() {
-      @Override public boolean accept(File dir, String name) {
-        return name.startsWith("2013");
+    for (String basedir : new String[]{
+        "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/"
+    }) {
+      File[] datedirs = new File(basedir).listFiles(new FilenameFilter() {
+        @Override public boolean accept(File dir, String name) {
+          return name.startsWith("2013");
+        }
+      });
+      String[] subdirs = new String[datedirs.length];
+      for (int i=0; i<subdirs.length; i++) {
+        subdirs[i] = datedirs[i].getName() + "/";
       }
-    });
-    String[] subdirs = new String[datedirs.length];
-    for (int i=0; i<subdirs.length; i++) {
-      subdirs[i] = datedirs[i].getName() + "/";
-    }
-    String[] files = { "changelists.txt", "runs.txt", "test_failures.txt", "test_details.txt", "test_results.json" };
-    Map<String, ConflictResolver> resolvers = new HashMap<>();
-    resolvers.put("runs.txt", new RunsConflictResolver());
-    resolvers.put("test_failures.txt", new FailuresConflictResolver());
-    for (String file : files) {
-      if (file.endsWith(".txt")) {
-        mergeTsv(basedir, subdirs, resolvers, file);
-      } else if (file.endsWith(".json")) {
-        mergeJson(basedir, subdirs, file);
-      } else {
-        throw new AssertionError(file);
+      String[] files = { "changelists.txt", "runs.txt", "test_failures.txt", "test_details.txt", "test_results.json" };
+      Map<String, ConflictResolver> resolvers = new HashMap<>();
+      resolvers.put("runs.txt", new RunsConflictResolver());
+      resolvers.put("test_failures.txt", new FailuresConflictResolver());
+      for (String file : files) {
+        if (file.endsWith(".txt")) {
+          mergeTsv(basedir, subdirs, resolvers, file);
+        } else if (file.endsWith(".json")) {
+          mergeJson(basedir, subdirs, file);
+        } else {
+          throw new AssertionError(file);
+        }
       }
     }
   }
@@ -84,9 +87,9 @@ public class MergeDataFilesMain {
     }
   }
 
-  public static final byte SUCCESS = 1;
-  public static final byte FAILURE = 2;
-  public static final byte BROKEN = 3;
+  public static final byte PASS = 1;
+  public static final byte FAIL = 2;
+  public static final byte BREAK = 3;
 
   private static void union(Map<Integer, Map<Byte, Set<Integer>>> merged,
       Map<Integer, Map<Byte, Set<Integer>>> data) {
@@ -98,37 +101,37 @@ public class MergeDataFilesMain {
         cmp: {
         if (prev.equals(e.getValue()))
           break cmpfail;
-        int a = Integer.compare(prev.get(SUCCESS).size(), e.getValue().get(SUCCESS).size());
-        int b = Integer.compare(prev.get(FAILURE).size(), e.getValue().get(FAILURE).size());
-        int c = Integer.compare(prev.get(BROKEN).size(), e.getValue().get(BROKEN).size());
+        int a = Integer.compare(prev.get(PASS).size(), e.getValue().get(PASS).size());
+        int b = Integer.compare(prev.get(FAIL).size(), e.getValue().get(FAIL).size());
+        int c = Integer.compare(prev.get(BREAK).size(), e.getValue().get(BREAK).size());
         if (a == 0) {
-          if (!prev.get(SUCCESS).equals(e.getValue().get(SUCCESS)))
+          if (!prev.get(PASS).equals(e.getValue().get(PASS)))
             break cmp;
         } else {
           if ((a<0 && (b>0 || c>0)) || a>0 && (b<0 || c<0))
             break cmp;
-          SetView<Integer> i = Sets.intersection(prev.get(SUCCESS), e.getValue().get(SUCCESS));
-          if (!(i.equals(prev.get(SUCCESS)) ^ i.equals(e.getValue().get(SUCCESS))))
+          SetView<Integer> i = Sets.intersection(prev.get(PASS), e.getValue().get(PASS));
+          if (!(i.equals(prev.get(PASS)) ^ i.equals(e.getValue().get(PASS))))
             break cmp;
         }
         if (b == 0) {
-          if (!prev.get(FAILURE).equals(e.getValue().get(FAILURE)))
+          if (!prev.get(FAIL).equals(e.getValue().get(FAIL)))
             break cmp;
         } else {
           if ((b<0 && (a>0 || c>0)) || b>0 && (a<0 || c<0))
             break cmp;
-          SetView<Integer> i = Sets.intersection(prev.get(FAILURE), e.getValue().get(FAILURE));
-          if (!(i.equals(prev.get(FAILURE)) ^ i.equals(e.getValue().get(FAILURE))))
+          SetView<Integer> i = Sets.intersection(prev.get(FAIL), e.getValue().get(FAIL));
+          if (!(i.equals(prev.get(FAIL)) ^ i.equals(e.getValue().get(FAIL))))
             break cmp;
         }
         if (c == 0) {
-          if (!prev.get(BROKEN).equals(e.getValue().get(BROKEN)))
+          if (!prev.get(BREAK).equals(e.getValue().get(BREAK)))
             break cmp;
         } else {
           if ((c<0 && (b>0 || a>0)) || c>0 && (b<0 || a<0))
             break cmp;
-          SetView<Integer> i = Sets.intersection(prev.get(BROKEN), e.getValue().get(BROKEN));
-          if (!(i.equals(prev.get(BROKEN)) ^ i.equals(e.getValue().get(BROKEN))))
+          SetView<Integer> i = Sets.intersection(prev.get(BREAK), e.getValue().get(BREAK));
+          if (!(i.equals(prev.get(BREAK)) ^ i.equals(e.getValue().get(BREAK))))
             break cmp;
         }
         break cmpfail;
@@ -172,6 +175,42 @@ public class MergeDataFilesMain {
       // replace a waiting run with a non-waiting run.
       int idxStatus = find(cols, "STATUS");
       if (idxStatus == -1) throw new RuntimeException("Couldn't find the STATUS column: " + Arrays.toString(cols));
+      int idxType = find(cols, "TYPE");
+      if (idxType == -1) throw new RuntimeException("Couldn't find the TYPE column: " + Arrays.toString(cols));
+      int idxBuildFailed = find(cols, "BUILD_FAILED");
+      if (idxBuildFailed == -1) throw new RuntimeException("Couldn't find the BUILD_FAILED column: " + Arrays.toString(cols));
+
+      boolean partial1 = "PARTIAL".equals(row1[idxType]);
+      boolean partial2 = "PARTIAL".equals(row2[idxType]);
+
+      boolean full1 = "FULL".equals(row1[idxType]);
+      boolean full2 = "FULL".equals(row2[idxType]);
+
+      boolean skipped1 = "SKIP".equals(row1[idxStatus]);
+      boolean skipped2 = "SKIP".equals(row2[idxStatus]);
+
+      boolean buildFailed1 = "y".equals(row1[idxBuildFailed]);
+      boolean buildFailed2 = "y".equals(row2[idxBuildFailed]);
+
+
+      // [36001141, 14-NOV-13, FINISHED, 8398687, PARTIAL, n]
+      // [36001141, 14-NOV-13, SKIP, 8398687, FULL, y]
+      if (skipped1 != skipped2) {
+        if (skipped1) return row1;
+        return row2;
+      }
+
+      if (skipped1 && skipped2) {
+        // [35989619, 14-NOV-13, SKIP, 8398254, PARTIAL, y]
+        // [35989619, 14-NOV-13, SKIP, 8398254, FULL, y]
+        if (partial1 != partial2 && full1 != full2 && buildFailed1 && buildFailed2) {
+          if (partial1 && full2) {
+            return row1;
+          }
+          assert full1 && partial2;
+          return row2;
+        }
+      }
 
       boolean wait1 = "WAIT".equals(row1[idxStatus]);
       boolean wait2 = "WAIT".equals(row2[idxStatus]);
@@ -204,9 +243,6 @@ public class MergeDataFilesMain {
 
 
       // replace null run type with non-null
-      int idxType = find(cols, "TYPE");
-      if (idxType == -1) throw new RuntimeException("Couldn't find the TYPE column: " + Arrays.toString(cols));
-
       boolean nulltype1 = "".equals(row1[idxType]);
       boolean nulltype2 = "".equals(row2[idxType]);
       nullblock:
@@ -226,9 +262,6 @@ public class MergeDataFilesMain {
         }
 
       // replace null type and null build_failed with non-null type and non-null build_failed
-      int idxBuildFailed = find(cols, "BUILD_FAILED");
-      if (idxBuildFailed == -1) throw new RuntimeException("Couldn't find the BUILD_FAILED column: " + Arrays.toString(cols));
-
       boolean nullBuildFailed1 = "".equals(row1[idxBuildFailed]);
       boolean nullBuildFailed2 = "".equals(row2[idxBuildFailed]);
 

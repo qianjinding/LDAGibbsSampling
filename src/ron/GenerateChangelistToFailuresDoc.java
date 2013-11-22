@@ -11,8 +11,12 @@ import com.google.common.collect.TreeMultimap;
 
 public class GenerateChangelistToFailuresDoc {
   public static void main(String[]args)throws Exception {
-    String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
-
+    String traindir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/train/";
+    String testdir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/test/";
+    doit(traindir);
+    doit(testdir);
+  }
+  public static void doit(String basedir)throws Exception {
     String changelists_tsv = basedir+"brokenby.txt";
     String outfile = basedir + "changelist_to_failures_doc.txt";
     Tsv brokenby = new Tsv(changelists_tsv);

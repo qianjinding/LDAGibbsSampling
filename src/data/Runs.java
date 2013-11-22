@@ -1,6 +1,8 @@
 package data;
 
 import io.LineReader;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -13,24 +15,47 @@ public class Runs extends LineReader {
   private final List<Run> list = new ArrayList<>();
   private final Multimap<String, Run> changelist_id_to_lines = HashMultimap.create();
 
+  private int prev_run_id = -1;
+  private final FilterOnCreateDate filterOnCreateDate;
+
+  public Runs(FilterOnCreateDate filterOnCreateDate) {
+    this.filterOnCreateDate = filterOnCreateDate;
+  }
+
+  public Set<Integer> getRunIds() {
+    return map.keySet();
+  }
+
   // ID CREATE_DATE STATUS CHANGELIST TYPE BUILD_FAILED
   // 1234 18-SEP-13 SKIP|FINISHED 54321 PARTIAL|FULL n|y
   @Override public void add(String line) {
     String[]ar = LineReader.split(line, '\t');
     int run_id = Integer.parseInt(ar[0]);
+    if (run_id <= prev_run_id) {
+      throw new RuntimeException(line);
+    }
+    prev_run_id = run_id;
     String createDate = ar[1];
     String status = ar[2];
     String changelistid = ar[3];
     String type = ar[4];
     String build_failed = ar[5];
 
-    Run run = new Run(run_id, createDate, status, changelistid, type, build_failed);
-    map.put(run.runid, run);
-    list.add(run);
+    long when;
+    try {
+      when = filterOnCreateDate.sdf.parse(createDate).getTime();
+    } catch (ParseException e) {
+      throw new RuntimeException(e);
+    }
+    if (when >= filterOnCreateDate.startmillis && when < filterOnCreateDate.endmillis) {
+      Run run = new Run(run_id, createDate, status, changelistid, type, build_failed);
+      map.put(run.runid, run);
+      list.add(run);
 
-    boolean added = changelist_id_to_lines.put(changelistid, run);
-    if (!added) {
-      throw new RuntimeException("curr: " + run);
+      boolean added = changelist_id_to_lines.put(changelistid, run);
+      if (!added) {
+        throw new RuntimeException("curr: " + run);
+      }
     }
   }
 
@@ -108,4 +133,15 @@ public class Runs extends LineReader {
       return true;
     }
   }
+
+  public static class FilterOnCreateDate {
+    private final long startmillis, endmillis;
+    private final SimpleDateFormat sdf = new SimpleDateFormat("dd-MMM-yy");
+    public FilterOnCreateDate(long startmillis, long endmillis) {
+      this.startmillis = startmillis;
+      this.endmillis = endmillis;
+    }
+
+  }
+
 }
