@@ -3,6 +3,7 @@ package ron;
 import io.LineReader;
 import io.ProgressTracker;
 import java.io.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.zip.GZIPOutputStream;
 import ron.GenerateBrokenByAndFixedBy.TestSuiteRun.Status;
@@ -11,6 +12,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import data.*;
+import data.Runs.FilterOnCreateDate;
 
 /**
  * given {@code test_results.json} and {@code runs.txt} this utility produces output files: {@code pass.txt.gz},
@@ -21,12 +23,25 @@ public class GenerateBrokenByAndFixedBy {
   //  ID      CREATE_DATE     TEST_DETAIL_ID  RUN_ID  TEST_STATUS
   //  9126993559      31-OCT-13       3233896 35011705        1
   public static void main(String[]args)throws Exception {
-    String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
+    String indir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
+    String traindir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/train/";
+    doit(indir, traindir, "01-JAN-80", "01-NOV-13");
+    String testdir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/test/";
+    doit(indir, testdir, "01-NOV-13", "01-NOV-14");
+  }
+  public static void doit(String indir, String outdir, String startdt, String enddt)throws Exception {
+    if (!indir.endsWith("/")) throw new IllegalArgumentException(indir);
+    if (!outdir.endsWith("/")) throw new IllegalArgumentException(outdir);
 
-    final Runs runs = LineReader.handle(true, new Runs(), basedir + "runs.txt");
+    SimpleDateFormat sdf = new SimpleDateFormat("dd-MMM-yy");
+    long startmillis = sdf.parse(startdt).getTime();
+    long endmillis = sdf.parse(enddt).getTime();
+
+    final Runs runs = LineReader.handle(true, new Runs(new FilterOnCreateDate(startmillis, endmillis)), indir + "runs.txt");
 
     // run_id -> test_status -> test_detail_id
-    TestResults results = new TestResults(PackUtils.readPackedJson(basedir + "test_results.json"));
+    TestResults results = new TestResults(PackUtils.readPackedJson(indir + "test_results.json"));
+    results.retainAll(runs.getRunIds());
 
     Set<Integer> testids = new TreeSet<>();
 
@@ -41,9 +56,9 @@ public class GenerateBrokenByAndFixedBy {
     }
 
     try (ProgressTracker pt = new ProgressTracker(null, "save", testids.size(), "tests");
-        BufferedWriter pass = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(basedir + "pass.txt.gz"))));
-        BufferedWriter brokenby = new BufferedWriter(new FileWriter(basedir + "brokenby.txt"));
-        BufferedWriter fixedby = new BufferedWriter(new FileWriter(basedir + "fixedby.txt"))) {
+        BufferedWriter pass = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outdir + "pass.txt.gz"))));
+        BufferedWriter brokenby = new BufferedWriter(new FileWriter(outdir + "brokenby.txt"));
+        BufferedWriter fixedby = new BufferedWriter(new FileWriter(outdir + "fixedby.txt"))) {
       String header = "TEST_ID\tCHANGELISTS\n";
       brokenby.write(header);
       fixedby.write(header);
@@ -86,7 +101,7 @@ public class GenerateBrokenByAndFixedBy {
             // the accumulated list of test suite runs probably didn't flip the test's polarity
             uncertain_runs.clear();
 
-            if (status == Status.SUCCESS) {
+            if (status == Status.PASS) {
               passing_changelists.add(runs.getRunById(tsr.getRunid()).getChangelistId());
             }
             continue;
@@ -94,10 +109,10 @@ public class GenerateBrokenByAndFixedBy {
           uncertain_runs.add(tsr.getRunid());
           BufferedWriter out;
           switch (status) {
-          case SUCCESS:
+          case PASS:
             out = fixedby;
             break;
-          case FAILURE:
+          case FAIL:
             out = brokenby;
             break;
           default:
@@ -129,6 +144,7 @@ public class GenerateBrokenByAndFixedBy {
 
   public static class TestResults {
     private final List<Integer> runids = new ArrayList<>();
+    // map from runid to test status to test id's
     private final Map<Integer, Map<Byte, Set<Integer>>> map;
 
     public TestResults(Map<Integer, Map<Byte, Set<Integer>>> map) {
@@ -144,16 +160,21 @@ public class GenerateBrokenByAndFixedBy {
       Integer runid = runids.get(idx);
       return new TestSuiteRun(runid, map.get(runid));
     }
+
+    public void retainAll(Set<Integer> runids) {
+      this.runids.retainAll(runids);
+      map.keySet().retainAll(runids);
+    }
   }
 
   public static class TestSuiteRun {
-    private final Set<Integer> successes,failures,brokens;
+    private final Set<Integer> passes,fails,breaks;
     private final int runid;
     public TestSuiteRun(int runid, Map<Byte, Set<Integer>> map) {
       this.runid = runid;
-      successes = notnull(map.get(MergeDataFilesMain.SUCCESS));
-      brokens = notnull(map.get(MergeDataFilesMain.BROKEN));
-      failures = notnull(map.get(MergeDataFilesMain.FAILURE));
+      passes = notnull(map.get(MergeDataFilesMain.PASS));
+      breaks = notnull(map.get(MergeDataFilesMain.BREAK));
+      fails = notnull(map.get(MergeDataFilesMain.FAIL));
     }
 
     private static final Set<Integer> notnull(Set<Integer> set) {
@@ -164,41 +185,41 @@ public class GenerateBrokenByAndFixedBy {
       return runid;
     }
 
-    public Set<Integer> getSuccesses() {
-      return successes;
+    public Set<Integer> getPasses() {
+      return passes;
     }
 
     public Set<Integer> getTests() {
-      return Sets.union(getSuccesses(), getFailures());
+      return Sets.union(getPasses(), getFailures());
     }
 
     public Set<Integer> getFailures() {
-      return Sets.union(failures, brokens);
+      return Sets.union(fails, breaks);
     }
 
     public int size() {
-      return successes.size() + failures.size() + brokens.size();
+      return passes.size() + fails.size() + breaks.size();
     }
 
-    public boolean wasSuccess(int testid) {
-      return successes.contains(testid);
+    public boolean didPass(int testid) {
+      return passes.contains(testid);
     }
 
-    public boolean wasFailure(int testid) {
-      return failures.contains(testid) || brokens.contains(testid);
+    public boolean didFail(int testid) {
+      return fails.contains(testid) || breaks.contains(testid);
     }
 
     public boolean wasSeen(int testid) {
-      return successes.contains(testid) || failures.contains(testid) || brokens.contains(testid);
+      return passes.contains(testid) || fails.contains(testid) || breaks.contains(testid);
     }
 
     public Status getStatus(int testid) {
-      return wasSuccess(testid) ? Status.SUCCESS
-          : wasFailure(testid) ? Status.FAILURE : null;
+      return didPass(testid) ? Status.PASS
+          : didFail(testid) ? Status.FAIL : null;
     }
 
     public enum Status {
-      SUCCESS, FAILURE
+      PASS, FAIL
     }
   }
 }

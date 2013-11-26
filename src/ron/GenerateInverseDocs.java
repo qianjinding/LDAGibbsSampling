@@ -10,8 +10,13 @@ import com.google.common.collect.Multimap;
 
 public class GenerateInverseDocs {
   public static void main(String[]args)throws Exception {
-    String basedir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/";
+    String traindir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/train/";
+    String testdir = "/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/test/";
+    doit(traindir);
+    doit(testdir);
+  }
 
+  public static void doit(String basedir)throws Exception {
     String changelists_tsv = basedir+"changelists.txt";
     String failures_tsv = basedir+"brokenby.txt";
     String outfile = basedir + "inverse_docs.txt.gz";
@@ -40,10 +45,12 @@ public class GenerateInverseDocs {
         out.write(Integer.toString(test_id));
         int x = 0;
         for (int cl_id : e.getValue()) {
-          for (String source_file : changelist_to_sourcefiles.get(cl_id)) {
-            out.write('\t');
-            out.write(source_file);
-            x++;
+          if (changelist_to_sourcefiles.containsKey(cl_id)) {
+            for (String source_file : changelist_to_sourcefiles.get(cl_id)) {
+              out.write('\t');
+              out.write(source_file);
+              x++;
+            }
           }
         }
         out.write('\n');;

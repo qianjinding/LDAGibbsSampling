@@ -10,6 +10,6 @@ public class TestResultsPackerMain {
   public static void main(String[]args)throws Exception {
     // run_id -> test_status -> test_detail_id
     Map<Integer, Map<Byte, Set<Integer>>> m = PackUtils.readRawTestRuns("/Users/ry23/Sites/cmu/test_results.txt.gz");
-    PackUtils.writePackedJson("/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/20131112/test_results.json", m);
+    PackUtils.writePackedJson("/Users/ry23/Dropbox/cmu-sfdc/ron_mallet/20131121/test_results.json", m);
   }
 }
