@@ -3,6 +3,8 @@ package cmu;
 import io.Tsv;
 import java.io.*;
 import java.util.*;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.HashMultimap;
 import cc.mallet.pipe.Pipe;
 import cc.mallet.topics.*;
 import cc.mallet.types.*;
@@ -12,59 +14,23 @@ import data.Prediction;
 public class TrainAndPredict {
   ParallelTopicModel currentModel;
   TopicInferencer currentInferencer;
-  final Map<String, Set<String>> changelist_id_to_files;
-  final Map<String, String> file_to_changelist_id;
-  final Map<String, Set<String>> changelist_to_failures;
+  final Multimap<String, String> changelist_id_to_files;
+  final Multimap<String, String> changelist_to_failures;
   Pipe instancePipe;
-  public TrainAndPredict(String changelist_file, String changelist_failure_file) {
-    Tsv cls;
-    try {
-      cls = new Tsv(changelist_file);
-      // ID SEEN_DATE AFFECTED_FILES
-      changelist_id_to_files = new HashMap<>();
-      file_to_changelist_id = new HashMap<>();
-      for (String[] changelist : cls.rows()) {
-        for (String file : changelist[2].split("\n")) {
-          Set<String> files = changelist_id_to_files.get(changelist[0]);
-          if (files == null) {
-            changelist_id_to_files.put(changelist[0], files = new HashSet<>());
-          }
-          files.add(file);
-          file_to_changelist_id.put(file, changelist[0]);
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeException("Cannot load changelists", e);
-    }
-    try {
-      BufferedReader clfReader = new BufferedReader(new FileReader(changelist_failure_file));
-      changelist_to_failures = new HashMap<>();
-      String line;
-      while ((line = clfReader.readLine()) != null) {
-        String[] ar = line.split("\t");
-        Set<String> set = new HashSet<>();
-        Set<String> prev = changelist_to_failures.put(ar[0], set);
-        if (prev != null) throw new RuntimeException(line);
-        for (int i = 1; i < ar.length; i++) {
-          boolean added = set.add(ar[i]);
-          if (!added) throw new RuntimeException(line);
-        }
-      }
-      clfReader.close();
-    } catch (IOException e) {
-      throw new RuntimeException("Could not read changelist to failure file", e);
-    }
+  public TrainAndPredict() {
+    changelist_id_to_files = HashMultimap.create();
+    changelist_to_failures = HashMultimap.create();
   }
-  public String randomChangelistID() {
+  public String randomChangelistIDFrom( Multimap <String, String> source) {
     // pick a random changelist to make predictions on... more than one file,
     // more than one failure
     String cListID = null;
     boolean stop = false;
-    Set<String> changelist_ids = changelist_to_failures.keySet();
+    Set<String> changelist_ids = source.keySet();
     while (!stop) {
       cListID = (String) changelist_ids.toArray()[new Randoms().nextInt(changelist_ids.size())];
       int length = changelist_id_to_files.get(cListID).size();
-      int failures = changelist_to_failures.get(cListID).size();
+      int failures = source.get(cListID).size();
       stop = (length > 1) && (failures > 1);
     }
     return cListID;
@@ -84,18 +50,7 @@ public class TrainAndPredict {
     similarity = similarity / (Math.sqrt(v1SqSum) * Math.sqrt(v2SqSum));
     return similarity;
   }
-  // super naive - do not use
-  static double diffSimilarity(double[] v1, double[] v2) {
-    // assumes lengths are the same
-    double similarity = 0.0;
-    double diffSqSum = 0.0;
-    for (int i = 0; i < v1.length; i++) {
-      double diff = v1[i] - v2[i];
-      diffSqSum += diff * diff;
-    }
-    similarity = diffSqSum / v1.length;
-    return 1.0 - similarity;
-  }
+
   public List<Prediction> scoresForChangelistOnTests(String changelist_id, Set<String> test_ids) {
     // treating words as files, then comparing the topic distribution of a
     // changelist to the topic distribution of the doc for a given test_id
@@ -104,7 +59,7 @@ public class TrainAndPredict {
     List<Prediction> p = new ArrayList<Prediction>();
     // make an instance containing the files from this changelist
     int unknown = 0;
-    Set<String> files = changelist_id_to_files.get(changelist_id);
+    Collection<String> files = changelist_id_to_files.get(changelist_id);
     Alphabet al = currentModel.getAlphabet();
     FeatureSequence fs = new FeatureSequence(al);
     for (String f : files) {
@@ -112,15 +67,13 @@ public class TrainAndPredict {
       if (id > 0) {
         fs.add(id);
       } else {
-        // System.out.printf("Unknown file %s in changelist %s\n", f,
-        // changelist_id);
         unknown++;
         // uncomment below to use unknown files
         fs.add(f);
       }
     }
-    System.out.printf("%d%% of changelist %s is unknown\n", unknown * 100 / files.size(), changelist_id);
-    Set<String> actualFailures = changelist_to_failures.get(changelist_id);
+    System.out.printf("%d%% of changelist %s is unknown to model\n", unknown * 100 / files.size(), changelist_id);
+    Collection<String> actualFailures = changelist_to_failures.get(changelist_id);
     Instance changelistInstance = new Instance(fs, changelist_id, null, null);
     List<TopicAssignment> testTopics = currentModel.data;
     for (TopicAssignment t : testTopics) {
@@ -129,8 +82,7 @@ public class TrainAndPredict {
         double testTopicDist[] = currentModel.getTopicProbabilities(t.topicSequence);
         double changelistTopicDist[] = currentInferencer.getSampledDistribution(changelistInstance, 100, 10,
             10);
-        // System.out.println(Arrays.toString(testTopicDist));
-        // System.out.println(Arrays.toString(changelistTopicDist));
+
         p.add(new Prediction(Integer.valueOf(changelist_id), cosineSimilarity(testTopicDist,
             changelistTopicDist), actualFailures.contains(test_id), test_id));
       }
@@ -157,7 +109,44 @@ public class TrainAndPredict {
     }
     return correctPredictions / total;
   }
-  
+
+  // just in case
+  void importChangelists(String changelist_file) throws IOException
+  {
+    Tsv cls = new Tsv(changelist_file);
+    // ID SEEN_DATE AFFECTED_FILES
+    for (String[] changelist : cls.rows()) {
+      for (String file : changelist[2].split("\n")) {
+        changelist_id_to_files.put(changelist[0], file);
+      }
+    }
+  }
+
+  // so importing of train and test data are separate
+  Multimap <String, String> importBrokenBy(String brokenby_file)
+  {
+    Multimap <String, String> added = HashMultimap.create();
+    try {
+      BufferedReader clfReader = new BufferedReader(new FileReader(brokenby_file));
+      String line;
+      // skip first line
+      clfReader.readLine();
+      while ((line = clfReader.readLine()) != null) {
+        String[] ar = line.split("\\s");
+        String test_id = ar[0];
+        String [] clists = ar[1].split("\\|");
+        for (int i = 0; i < clists.length; i++) {
+          added.put(clists[i],  test_id);
+        }
+      }
+      clfReader.close(); // there's no rewinding this file
+
+    } catch (IOException e) {
+      throw new RuntimeException("Could not read broken_by.txt", e);
+    }
+    return added;
+  }
+
   public void trainNewModel(InstanceList training) throws IOException {
     ParallelTopicModel model = new ParallelTopicModel(100, 50, 0.01);
     model.addInstances(training);
@@ -200,41 +189,78 @@ public class TrainAndPredict {
       throw (e);
     }
   }
-  public void testCurrentModel() throws IOException {
-    String randomCL1 = randomChangelistID();
-    String randomCL2 = randomChangelistID();
-    while (randomCL1.equals(randomCL2))
-      randomCL2 = randomChangelistID();
-    // take failures from both runs
-    Set<String> failures = changelist_to_failures.get(randomCL1);
-    failures.addAll(changelist_to_failures.get(randomCL2));
-    double acc = evaluatePredictions(randomCL1, randomCL2, failures);
-    System.out.printf("Changelists %s, %s: %.1f %% correct.\n", randomCL1, randomCL2, acc * 100);
+  public void testCurrentModel(String test_broken_by, String changelists) throws IOException {
+
+    if (changelists != null) {
+      importChangelists(changelists);
+    }
+
+    Multimap <String, String> test_cl_to_failures = importBrokenBy(test_broken_by);
+    changelist_to_failures.putAll(test_cl_to_failures);
+
+    for (int i=0; i<100; i++) {
+      String randomCL1 = randomChangelistIDFrom(test_cl_to_failures);
+      String randomCL2 = randomChangelistIDFrom(test_cl_to_failures);
+
+      while (randomCL1.equals(randomCL2))
+        randomCL2 = randomChangelistIDFrom(test_cl_to_failures);
+
+      // take failures from both runs
+      Set<String> failures = new HashSet<String>();
+
+      failures.addAll(test_cl_to_failures.get(randomCL1));
+      failures.addAll(test_cl_to_failures.get(randomCL2));
+
+
+      double acc = evaluatePredictions(randomCL1, randomCL2, failures);
+      System.out.printf("Changelists %s, %s: %.1f %% correct.\n", randomCL1, randomCL2, acc * 100);
+    }
   }
-  
+
   public static void main(String[] args) throws Exception {
-    TrainAndPredict t = new TrainAndPredict("/Users/abannis/CourseWork/18697/project/data/changelists.txt",
-        "/Users/abannis/CourseWork/18697/project/data/changelist_to_failures_doc.txt");
+    TrainAndPredict t = new TrainAndPredict();
     // load data from file if available, else recreate model, inferencer and
     // pipe
+
+    // should really do these file names with options or something
+
+    String training_file = "/Users/abannis/CourseWork/18697/project/data/train/brokenby.txt";
+    String training_changelists = "/Users/abannis/CourseWork/18697/project/data/train/changelists.txt";
+
+    String test_file = "/Users/abannis/CourseWork/18697/project/data/test/brokenby.txt";
+    String test_changelists = "/Users/abannis/CourseWork/18697/project/data/test/changelists.txt";
     File modelFile = null;
+
+    t.importChangelists(training_changelists);
+
+    t.changelist_to_failures.putAll(t.importBrokenBy(training_file));
+
     if (args.length > 0) {
       modelFile = new File(args[0]);
+
       try {
         t.load(modelFile);
-      } catch (IOException e) {}
+      } catch (IOException e) {
+        // no problem, we'll make a new one
+      }
     }
+
     if (t.currentModel == null) {
-      InstanceImporter importer = new InstanceImporter();
-      InstanceList topic_instances = importer
-          .readFile("/Users/abannis/CourseWork/18697/project/data/inverse_docs.txt");
-      t.trainNewModel(topic_instances);
+
+      InstanceList instances = null;
+
+      FileReader clfReader = new FileReader(training_file);
+      BrokenByImporter imp = new BrokenByImporter();
+      instances = imp.readFile(clfReader, t.changelist_id_to_files.asMap());
+      clfReader.close();
+      t.trainNewModel(instances);
     }
+
     if (modelFile != null) {
       t.save(modelFile);
     }
-   
+
     System.out.println("Model likelihood: " + t.currentModel.modelLogLikelihood());
-    t.testCurrentModel();
+    t.testCurrentModel(test_file, test_changelists);
   }
 }
