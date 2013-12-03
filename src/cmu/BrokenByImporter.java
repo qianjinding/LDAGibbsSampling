@@ -4,8 +4,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.*;
+import java.util.Map.Entry;
 
 import cc.mallet.pipe.Pipe;
+import cc.mallet.pipe.PrintInputAndTarget;
+import cc.mallet.pipe.SerialPipes;
 import cc.mallet.pipe.StringList2FeatureSequence;
 
 import cc.mallet.types.Instance;
@@ -14,18 +17,24 @@ import cc.mallet.types.InstanceList;
 public class BrokenByImporter {
   
   Pipe inputPipe;
+  Map<String, Collection<String>> files;
+  Map<String, Collection<String>> failures;
 
-  public BrokenByImporter() 
+  public BrokenByImporter(Map<String, Collection<String>> changelist_to_files, Map<String, Collection<String>> failures_to_changelists) 
   {
-   // ArrayList<Pipe> pipeList = new ArrayList<Pipe>();
-   // pipeList.add(new StringList2FeatureSequence());
+//    ArrayList<Pipe> pipeList = new ArrayList<Pipe>();
+//    pipeList.add(new StringList2FeatureSequence());
+//    pipeList.add(new PrintInputAndTarget());
 
     inputPipe = new StringList2FeatureSequence();
+    //inputPipe = new SerialPipes(pipeList);
+    files = changelist_to_files;
+    failures = failures_to_changelists;
   }
  
-  public InstanceList readFile(Reader r, Map<String, Collection<String>> changelist_to_files)
+  public InstanceList loadInstances()
   { 
-    BrokenByIterator it = new BrokenByIterator(r, changelist_to_files);
+    BrokenByIterator it = new BrokenByIterator(files, failures);
     InstanceList instances = new InstanceList(inputPipe);
     instances.addThruPipe(it);
     
@@ -33,36 +42,21 @@ public class BrokenByImporter {
   }
   
   private class BrokenByIterator implements Iterator<Instance> {
-    BufferedReader reader = null;
-   String currentLine;
-   boolean hasNextUsed;
+   Entry<String, Collection<String>> currentEntry;
    Map<String, Collection<String>> changelist_to_files;
+   Iterator<Entry<String, Collection<String>>> failures_iterator;
     // ProgressTracker p;
-    public BrokenByIterator(Reader reader, Map<String, Collection<String>> changelist_to_files) 
+    public BrokenByIterator(Map<String, Collection<String>> changelist_to_files, Map<String, Collection<String>> failures_to_changelists) 
     {
-      this.reader = new BufferedReader(reader);
-      try {
-        this.reader.readLine(); //skip first line
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      
+      failures_iterator = failures_to_changelists.entrySet().iterator();
       this.changelist_to_files = changelist_to_files;
     }
     
     public Instance next() {
       String target = null;
-      if (!hasNextUsed) {
-        try {
-          currentLine = reader.readLine();
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      } else {
-        hasNextUsed = false;
-      }
-      String parts[] = currentLine.split("\\s");
-      String changelists[] = parts[1].split("\\|");
+      currentEntry = failures_iterator.next();
+
+     List<String> changelists = new ArrayList<String>(currentEntry.getValue());
       
       // add all the files from the changelists to the data field
       List<String> data = new ArrayList<String>();
@@ -73,18 +67,12 @@ public class BrokenByImporter {
         }
       }
       
-      target = parts[0]; // the test
+      target = currentEntry.getKey();
       
       return new Instance(data, target, null, null);
     }
     public boolean hasNext() {
-      hasNextUsed = true;
-      try {
-        currentLine = reader.readLine();
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-      return (currentLine != null);
+      return failures_iterator.hasNext();
     }
     public void remove() {
       throw new IllegalStateException("This Iterator<Instance> does not support remove().");

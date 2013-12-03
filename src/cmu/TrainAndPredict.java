@@ -5,6 +5,8 @@ import java.io.*;
 import java.util.*;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
 import cc.mallet.pipe.Pipe;
 import cc.mallet.topics.*;
 import cc.mallet.types.*;
@@ -51,6 +53,36 @@ public class TrainAndPredict {
     return similarity;
   }
 
+  double changelistSimilarity(String cl_id1, String cl_id2)
+  {    
+    
+    Collection<String> cl1 = changelist_id_to_files.get(cl_id1);
+    Collection<String> cl2 = changelist_id_to_files.get(cl_id2);
+    
+    Alphabet alphabet = new Alphabet();
+    for (String s:cl1) {
+      alphabet.lookupIndex(s, true);
+    }
+    for (String s:cl2) {
+      alphabet.lookupIndex(s, true);
+    }
+    
+    double [] v1 = new double[alphabet.size()];
+    double [] v2 = new double[alphabet.size()];
+    
+    for (int i=0; i<alphabet.size(); i++) {
+        String s = (String)alphabet.lookupObject(i);
+        if (s != null) {
+          if (cl1.contains(s))
+            v1[i] = 1;
+          if (cl2.contains(s))
+            v2[i] = 1;
+        }
+        
+    }
+    
+   return cosineSimilarity(v1, v2);
+  }
   public List<Prediction> scoresForChangelistOnTests(String changelist_id, Set<String> test_ids) {
     // treating words as files, then comparing the topic distribution of a
     // changelist to the topic distribution of the doc for a given test_id
@@ -72,42 +104,99 @@ public class TrainAndPredict {
         fs.add(f);
       }
     }
-    System.out.printf("%d%% of changelist %s is unknown to model\n", unknown * 100 / files.size(), changelist_id);
+    System.out.printf("%s: %d%% unknown\n", changelist_id, unknown * 100 / files.size());
     Collection<String> actualFailures = changelist_to_failures.get(changelist_id);
     Instance changelistInstance = new Instance(fs, changelist_id, null, null);
     List<TopicAssignment> testTopics = currentModel.data;
+    Set<String> handled_ids = new HashSet<String>();
     for (TopicAssignment t : testTopics) {
       String test_id = (String) t.instance.getTarget();
       if (test_ids.contains(test_id)) {
         double testTopicDist[] = currentModel.getTopicProbabilities(t.topicSequence);
         double changelistTopicDist[] = currentInferencer.getSampledDistribution(changelistInstance, 100, 10,
             10);
-
+handled_ids.add(test_id);
         p.add(new Prediction(Integer.valueOf(changelist_id), cosineSimilarity(testTopicDist,
             changelistTopicDist), actualFailures.contains(test_id), test_id));
       }
     }
-    // System.out.println();
+ 
     return p;
   }
-  public double evaluatePredictions(String changelist_id1, String changelist_id2, Set<String> test_ids) {
-    double correctPredictions = 0.0;
-    int total = 0;
+  
+  // precision, recall, tnr, accuracy, fraction ambiguous
+  public List<List<Double>> labelsAndScores(String changelist_id1, String changelist_id2, Set<String> test_ids) {
+    List<Double> scores = new ArrayList<Double>();
+    List<Double> labels = new ArrayList<Double>();
     List<Prediction> scores1 = scoresForChangelistOnTests(changelist_id1, test_ids);
     List<Prediction> scores2 = scoresForChangelistOnTests(changelist_id2, test_ids);
+    double similarity = changelistSimilarity(changelist_id1, changelist_id2);
+    System.out.printf("Similarity: %f\n", similarity);
     for (Prediction p1 : scores1) {
       for (Prediction p2 : scores2) {
         if (p1.test_id.equals(p2.test_id)) {
-          if (p1.actually_failed != p2.actually_failed) {
-            total++;
-            if ((p1.score > p2.score) == (p1.actually_failed && !p2.actually_failed))
-              correctPredictions += 1;
+          if ((p1.score == p2.score) || (p1.actually_failed == p2.actually_failed)) {
+            // boo hoo
+          } else {
+            if (p1.actually_failed && !p2.actually_failed)
+              labels.add(1.0);
+            else
+              labels.add(0.0);
+            
+            scores.add(p1.score-p2.score);
           }
           break; // should only be one of each test id in each of these lists
         }
       }
     }
-    return correctPredictions / total;
+    List<List<Double>> ret = new ArrayList<List<Double>>();
+    ret.add(scores);
+    ret.add(labels);
+   return ret;
+  }
+  
+  // precision, recall, tnr, accuracy, fraction ambiguous
+  public double[] evaluatePredictions(String changelist_id1, String changelist_id2, Set<String> test_ids) {
+    double falsePositives = 0;
+    double falseNegatives = 0;
+    double truePositives  = 0;
+    double trueNegatives  = 0; 
+    double ambiguous = 0;
+    List<Prediction> scores1 = scoresForChangelistOnTests(changelist_id1, test_ids);
+    List<Prediction> scores2 = scoresForChangelistOnTests(changelist_id2, test_ids);
+    double similarity = changelistSimilarity(changelist_id1, changelist_id2);
+    System.out.printf("Similarity: %f\n", similarity);
+    for (Prediction p1 : scores1) {
+      for (Prediction p2 : scores2) {
+        if (p1.test_id.equals(p2.test_id)) {
+            if ((p1.score > p2.score) && (p1.actually_failed && !p2.actually_failed))
+                truePositives++;
+            else if ((p1.score > p2.score) && (!p1.actually_failed && p2.actually_failed))
+                falsePositives++;
+            else if ((p1.score < p2.score) && (!p1.actually_failed && p2.actually_failed))
+                trueNegatives++;
+            else if ((p1.score < p2.score) && (p1.actually_failed && !p2.actually_failed))
+                falseNegatives++;
+            else
+                ambiguous++;
+          break; // should only be one of each test id in each of these lists
+        }
+      }
+    }
+//    return new double[] {
+//        truePositives/(truePositives + falsePositives),
+//        truePositives/(truePositives + falseNegatives),
+//        trueNegatives/(trueNegatives + falsePositives),
+//        (truePositives + trueNegatives)/(truePositives + trueNegatives + falseNegatives + falsePositives),
+//        (ambiguous)/(truePositives + trueNegatives + falseNegatives + falsePositives + ambiguous)
+//    };
+    return new double[] {
+        truePositives,
+        trueNegatives,
+        falsePositives,
+        falseNegatives,
+        (ambiguous)/(truePositives + trueNegatives + falseNegatives + falsePositives + ambiguous)
+    };
   }
 
   // just in case
@@ -153,6 +242,7 @@ public class TrainAndPredict {
     model.setOptimizeInterval(20);
     model.setNumThreads(4);
     model.setNumIterations(1000);
+    model.setTopicDisplay(0, 0);
     model.estimate();
     currentModel = model;
     currentInferencer = model.getInferencer();
@@ -189,32 +279,87 @@ public class TrainAndPredict {
       throw (e);
     }
   }
-  public void testCurrentModel(String test_broken_by, String changelists) throws IOException {
-
-    if (changelists != null) {
-      importChangelists(changelists);
+  
+  private List<List<String>> splitChangelists(Collection<String> clists)
+  {
+    List<String> clist_list = new ArrayList<String>(clists);
+    List<List<String>> splitClists = new ArrayList<List<String>>();
+    
+    List<Integer> indices = new ArrayList<Integer>();
+    for (int i=0; i<clists.size(); i++)
+      indices.add(i);
+    Collections.shuffle(indices);
+        
+    // could put this into a loop later for n-way splits
+    
+    List<Integer> half = indices.subList(0, clists.size()/2);
+    List<String> clist = new ArrayList<String>();
+    for (Integer i : half) {
+      clist.add(clist_list.get(i));
     }
+    
+    splitClists.add(clist);
+    
+    half = indices.subList(clists.size()/2, clists.size());
+    clist = new ArrayList<String>();
+    for (Integer i : half) {
+      clist.add(clist_list.get(i));
+    }
+    splitClists.add(clist);
+    
+    return splitClists;
+ }
+  
+  public void testCurrentModel(String test_broken_by, String test_fixed_by) throws IOException {
 
     Multimap <String, String> test_cl_to_failures = importBrokenBy(test_broken_by);
+    
+    if (test_fixed_by != null) {
+      Multimap <String, String> test_cl_to_fixed = importBrokenBy(test_fixed_by);
+      changelist_to_failures.putAll(test_cl_to_fixed);
+    }
+    
     changelist_to_failures.putAll(test_cl_to_failures);
 
-    for (int i=0; i<100; i++) {
-      String randomCL1 = randomChangelistIDFrom(test_cl_to_failures);
-      String randomCL2 = randomChangelistIDFrom(test_cl_to_failures);
 
-      while (randomCL1.equals(randomCL2))
-        randomCL2 = randomChangelistIDFrom(test_cl_to_failures);
+    List<List<String>> splitClists = splitChangelists(test_cl_to_failures.keySet());
+    List<String> list1 = splitClists.get(0);
+    List<String> list2 = splitClists.get(1);
 
-      // take failures from both runs
-      Set<String> failures = new HashSet<String>();
+    int n_changelists = test_cl_to_failures.keySet().size();
 
-      failures.addAll(test_cl_to_failures.get(randomCL1));
-      failures.addAll(test_cl_to_failures.get(randomCL2));
+    System.out.println();
+    int iterations = n_changelists*n_changelists;
+    if (iterations > 50000)
+      iterations = 50000;
+    Randoms r = new Randoms();
+    
+    
+    for (int i=0; i<iterations; i++) {
+      
+      int j = r.nextInt(list1.size());
+      int k = r.nextInt(list2.size());
+      String randomCL1 = list1.get(j);
+      String randomCL2 = list2.get(k);
+  
 
+        // take failures from both clists
+        Set<String> failures = new HashSet<String>();
 
-      double acc = evaluatePredictions(randomCL1, randomCL2, failures);
-      System.out.printf("Changelists %s, %s: %.1f %% correct.\n", randomCL1, randomCL2, acc * 100);
-    }
+        failures.addAll(test_cl_to_failures.get(randomCL1));
+        failures.addAll(test_cl_to_failures.get(randomCL2));
+
+        
+        List<List<Double>> forMatlab = labelsAndScores(randomCL1, randomCL2, failures);
+        
+       // double [] stats = evaluatePredictions(randomCL1, randomCL2, failures);
+        Double[] labels = forMatlab.get(1).toArray(new Double[0]);
+        Double[] scores = forMatlab.get(0).toArray(new Double[0]);
+        
+        System.out.println(Arrays.toString(labels));
+        System.out.println(Arrays.toString(scores));
+        System.out.println();
+      }
   }
 
   public static void main(String[] args) throws Exception {
@@ -225,15 +370,26 @@ public class TrainAndPredict {
     // should really do these file names with options or something
 
     String training_file = "/Users/abannis/CourseWork/18697/project/data/train/brokenby.txt";
-    String training_changelists = "/Users/abannis/CourseWork/18697/project/data/train/changelists.txt";
+    String fix_file = "/Users/abannis/CourseWork/18697/project/data/train/fixedby.txt";
+    String changelists = "/Users/abannis/CourseWork/18697/project/data/changelists.txt";
 
-    String test_file = "/Users/abannis/CourseWork/18697/project/data/test/brokenby.txt";
-    String test_changelists = "/Users/abannis/CourseWork/18697/project/data/test/changelists.txt";
+    String test_broken = "/Users/abannis/CourseWork/18697/project/data/test/brokenby.txt";
+    String test_fixed = "/Users/abannis/CourseWork/18697/project/data/test/fixedby.txt";
     File modelFile = null;
 
-    t.importChangelists(training_changelists);
+    t.importChangelists(changelists);
 
-    t.changelist_to_failures.putAll(t.importBrokenBy(training_file));
+     fix_file = null;
+     test_fixed = null;
+    
+    Multimap<String, String> training_cl_to_fails = t.importBrokenBy(training_file); 
+    if (fix_file != null) {
+      Multimap<String, String> cl_to_fixes = t.importBrokenBy(fix_file); 
+      t.changelist_to_failures.putAll(cl_to_fixes); 
+    }
+    t.changelist_to_failures.putAll(training_cl_to_fails);
+
+
 
     if (args.length > 0) {
       modelFile = new File(args[0]);
@@ -249,10 +405,11 @@ public class TrainAndPredict {
 
       InstanceList instances = null;
 
-      FileReader clfReader = new FileReader(training_file);
-      BrokenByImporter imp = new BrokenByImporter();
-      instances = imp.readFile(clfReader, t.changelist_id_to_files.asMap());
-      clfReader.close();
+      // invert the map of changelists to failures for our training instances
+     // Multimap<String, String> failures_to_clists = HashMultimap.create(); 
+     // Multimaps.invertFrom(training_cl_to_fails, failures_to_clists);
+   //   BrokenByImporter imp = new BrokenByImporter(t.changelist_id_to_files.asMap() , failures_to_clists.asMap());
+    //  instances = imp.loadInstances();
       t.trainNewModel(instances);
     }
 
@@ -261,6 +418,6 @@ public class TrainAndPredict {
     }
 
     System.out.println("Model likelihood: " + t.currentModel.modelLogLikelihood());
-    t.testCurrentModel(test_file, test_changelists);
+    t.testCurrentModel(test_broken, test_fixed);
   }
 }
