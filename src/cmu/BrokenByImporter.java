@@ -22,9 +22,9 @@ public class BrokenByImporter {
 
   public BrokenByImporter(Map<String, Collection<String>> changelist_to_files, Map<String, Collection<String>> failures_to_changelists) 
   {
-//    ArrayList<Pipe> pipeList = new ArrayList<Pipe>();
-//    pipeList.add(new StringList2FeatureSequence());
-//    pipeList.add(new PrintInputAndTarget());
+    //ArrayList<Pipe> pipeList = new ArrayList<Pipe>();
+   // pipeList.add(new StringList2FeatureSequence());
+   // pipeList.add(new PrintInputAndTarget());
 
     inputPipe = new StringList2FeatureSequence();
     //inputPipe = new SerialPipes(pipeList);
@@ -68,7 +68,7 @@ public class BrokenByImporter {
       }
       
       target = currentEntry.getKey();
-      
+     // System.out.println(target);
       return new Instance(data, target, null, null);
     }
     public boolean hasNext() {
